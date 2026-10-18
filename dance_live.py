@@ -186,6 +186,49 @@ def fit_h(img, h=H):
     return cv2.resize(img, (int(img.shape[1] * h / img.shape[0]), h))
 
 
+POSE_IDX = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]   # .pose.json nokta sirasi (engine.js ile ayni)
+
+
+def ref_from_pose(video, pose_path):
+    """Ekranda 'video' (resmi klip) oynar, acilar hazir .pose.json'dan (tekli dans videosu) gelir.
+    Doner: ds.extract ile ayni (aci matrisi, kareler, fps)."""
+    import json
+    data = json.load(open(pose_path))
+    pfr, aspect = data["frames"], data["aspect"]
+    ts = data.get("ts") or [data.get("t0", 0) + k / data["fps"] for k in range(len(pfr))]   # v1: ts yok
+    cap = cv2.VideoCapture(video)
+    if not cap.isOpened():
+        sys.exit(f"HATA: '{video}' acilamadi.")
+    src_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    step = max(1, int(round(src_fps / ds.TARGET_FPS)))
+    rfps = src_fps / step
+    frames, i = [], 0
+    while True:
+        ok, img = cap.read()
+        if not ok:
+            break
+        if i % step == 0:
+            h, w = img.shape[:2]
+            frames.append(cv2.resize(img, (int(w * 360 / h), 360)))
+        i += 1
+    cap.release()
+    angles, k = [], 0
+    for n in range(len(frames)):
+        t = n / rfps
+        while k + 1 < len(ts) and abs(ts[k + 1] - t) <= abs(ts[k] - t):
+            k += 1
+        row = [np.nan] * len(ds.JOINTS)
+        pts = pfr[k] if ts and abs(ts[k] - t) < 0.1 else None
+        if pts:
+            P = lambda m: np.array([pts[POSE_IDX.index(m)][0] * aspect, pts[POSE_IDX.index(m)][1]])
+            V = lambda m: pts[POSE_IDX.index(m)][2]
+            for j, (_, a, b, c) in enumerate(ds.JOINTS):
+                if min(V(a), V(b), V(c)) >= ds.MIN_VIS:
+                    row[j] = ds.angle(P(a), P(b), P(c))
+        angles.append(row)
+    return ds._clean(np.array(angles, dtype=float)), frames, rfps
+
+
 def find_ffplay():
     exe = shutil.which("ffplay")
     if exe or sys.platform != "win32":
@@ -238,8 +281,13 @@ def main():
     ap.add_argument("--emulate-live", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
 
-    print("Referans hazirlaniyor (acilista bir kez, biraz surer)...")
-    ref_a, ref_f, rfps = ds.extract(args.referans)
+    pose_json = os.path.splitext(args.referans)[0] + ".pose.json"
+    if os.path.exists(pose_json):
+        print("Referans yukleniyor...")
+        ref_a, ref_f, rfps = ref_from_pose(args.referans, pose_json)
+    else:
+        print("Referans hazirlaniyor (hazir .pose.json yok, video analiz ediliyor; biraz surer)...")
+        ref_a, ref_f, rfps = ds.extract(args.referans)
     n_ref, dur = len(ref_a), len(ref_a) / rfps
     w_frames = max(1, int(round(WINDOW_S * rfps)))
 

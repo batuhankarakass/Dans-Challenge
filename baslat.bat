@@ -13,6 +13,9 @@ echo   4 - Snap
 echo   5 - Ariyo
 echo   6 - KTS
 echo   7 - Zamansizdik
+echo   8 - Ruya
+echo   9 - Daha Iyi
+echo  10 - Basrol Sensin
 set SEC=1
 set /p SEC=Numara (Enter = 1):
 set REF=%S%\manifest.mp4
@@ -22,6 +25,9 @@ if "%SEC%"=="4" set REF=%S%\snap.mp4
 if "%SEC%"=="5" set REF=%S%\ariyo.mp4
 if "%SEC%"=="6" set REF=%S%\kts.mp4
 if "%SEC%"=="7" set REF=%S%\zamansizdik.mp4
+if "%SEC%"=="8" set REF=%S%\ruya.mp4
+if "%SEC%"=="9" set REF=%S%\daha-iyi.mp4
+if "%SEC%"=="10" set REF=%S%\basrol-sensin.mp4
 
 python dance_live.py %REF% --kaynak %KAYNAK% %*
 echo.
