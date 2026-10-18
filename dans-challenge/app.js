@@ -105,6 +105,7 @@
 
   // ------------------------------------------------------------ ekranlar
   let screen = "loading";
+  let bootReady = Promise.resolve();   // kamera + model hazir olunca biter (boot'ta atanir)
   function show(name) {
     // isim kutusunda kalan odak klavye kisayollarini engellemesin
     if (name !== "name" && document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
@@ -509,6 +510,7 @@
    * gercekten gosterdigi kareyi garanti eder; sarma (seek) bazen eski kareyi verebiliyor.
    */
   async function analyzeSong(song) {
+    await bootReady;   // model hazir olmadan analiz bos kare uretir
     const dlg = $("#dlgAnalyze"), box = $("#anVideoBox");
     const v = document.createElement("video");
     v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = song.src;
@@ -630,6 +632,8 @@
     async begin(name) {
       const song = currentSong();
       if (!song) { toast("Önce bir şarkı ekle (Ayarlar > Şarkılar)."); return show("home"); }
+      if ((!poseSys.ready && !sim) || !cam.ok) { toast("Hazırlanıyor, bir saniye…"); await bootReady; }
+      if (!poseSys.ready && !sim) return;
       if (!cam.ok) { toast("Kamera çalışmıyor. Kamera kartındaki mesaja bak."); return show("home"); }
       this.name = (name || "").trim() || "Misafir";
       this.song = song;
@@ -1016,32 +1020,30 @@
       document.querySelector(".loader-dots").hidden = true;
       return;
     }
-    loading("Şarkılar yükleniyor…");
-    await loadSongs();
-    loading("Kamera açılıyor…", "Tarayıcı izin isterse \"İzin ver\"e bas.");
+    loading("Hazırlanıyor…");
+    // Kamera, model ve sarkilar ayni anda yuklenir; ana ekran sarkilar gelir gelmez acilir.
+    // Kamera kendi kartinda "Kamera aciliyor" gosterir, model arka planda hazirlanir.
     mountCam($("#homeCamStage"));
     const camP = startCamera();
-    if (TEST.sim) {
-      try { sim = await (await fetch(TEST.sim)).json(); } catch (e) { console.warn(e); }
-    } else {
-      loading("Hareket algılama modeli yükleniyor…", "İlk açılış birkaç saniye sürebilir.");
-      try { await poseSys.init(settings.model); }
-      catch (e) {
+    const modelP = TEST.sim
+      ? fetch(TEST.sim).then((r) => r.json()).then((d) => { sim = d; }).catch((e) => console.warn(e))
+      : poseSys.init(settings.model).catch((e) => {
         console.error(e);
         loading("Hareket algılama başlatılamadı", "Chrome veya Edge'in güncel sürümünü kullan. Ayarlar > Sistem > \"Donanım hızlandırmayı kullan\" açık olmalı. (" + e.message + ")");
         document.querySelector(".loader-dots").hidden = true;
-        return;
-      }
-    }
-    await camP;
+        show("loading");
+      });
+    bootReady = Promise.all([camP, modelP]);
+    await loadSongs();
+    renderHome();
+    show("home");
+    requestAnimationFrame(loop);
+    await bootReady;
     if (sim) setInterval(() => {
       if (!cam.ok || analyzing) return;
       const t = game.state === "play" ? refVideo.currentTime - TEST.simLag : cam.video.currentTime;
       onPose(simAt(t));
     }, 33);
-    renderHome();
-    show("home");
-    requestAnimationFrame(loop);
     if (TEST.auto) { await sleep(800); game.begin("Test"); }
   }
   boot();
