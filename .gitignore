@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+
+# indirilen ham videolar ve kopyalar
+indirilen/
+referans.mp4.mp4
+demo_sonuc_right.mp4
+
+# bu bilgisayara ozel
+kaynak.txt
+kamera_rapor.txt

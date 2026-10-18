@@ -1,0 +1,60 @@
+{
+  "songs": [
+    {
+      "id": "manifest",
+      "title": "Manifest",
+      "file": "sarkilar/manifest.mp4",
+      "pose": "sarkilar/manifest.pose.json",
+      "start": 0,
+      "end": 20.9
+    },
+    {
+      "id": "tralala",
+      "title": "Tralala",
+      "file": "sarkilar/tralala.mp4",
+      "pose": "sarkilar/tralala.pose.json",
+      "start": 0,
+      "end": 21.22
+    },
+    {
+      "id": "toz-pembe",
+      "title": "Toz Pembe",
+      "file": "sarkilar/toz-pembe.mp4",
+      "pose": "sarkilar/toz-pembe.pose.json",
+      "start": 0,
+      "end": 17.15
+    },
+    {
+      "id": "snap",
+      "title": "Snap",
+      "file": "sarkilar/snap.mp4",
+      "pose": "sarkilar/snap.pose.json",
+      "start": 0,
+      "end": 20.35
+    },
+    {
+      "id": "ariyo",
+      "title": "Arıyo",
+      "file": "sarkilar/ariyo.mp4",
+      "pose": "sarkilar/ariyo.pose.json",
+      "start": 0,
+      "end": 18.22
+    },
+    {
+      "id": "kts",
+      "title": "KTS",
+      "file": "sarkilar/kts.mp4",
+      "pose": "sarkilar/kts.pose.json",
+      "start": 0,
+      "end": 25.42
+    },
+    {
+      "id": "zamansizdik",
+      "title": "Zamansızdık",
+      "file": "sarkilar/zamansizdik.mp4",
+      "pose": "sarkilar/zamansizdik.pose.json",
+      "start": 0,
+      "end": 33.02
+    }
+  ]
+}

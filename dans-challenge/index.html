@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dans Challenge</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='8' cy='16' r='5' fill='%234285F4'/%3E%3Ccircle cx='16' cy='9' r='5' fill='%23EA4335'/%3E%3Ccircle cx='24' cy='16' r='5' fill='%23FBBC05'/%3E%3Ccircle cx='16' cy='23' r='5' fill='%2334A853'/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="lights" aria-hidden="true"><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i></div>
+
+<!-- Ust bant: kulup -->
+<header class="topbar">
+  <div class="club">
+    <img class="club-logo" src="logo.png" alt="" onerror="this.remove()">
+    <span class="dots" aria-hidden="true"><b></b><b></b><b></b><b></b></span>
+    <span id="clubName">Google Developer Groups on Campus</span>
+  </div>
+  <div class="top-actions">
+    <button class="icon-btn" id="btnFullscreen" title="Tam ekran (F)" aria-label="Tam ekran">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+    <button class="icon-btn" id="btnSettings" title="Ayarlar (S)" aria-label="Ayarlar">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- YUKLENIYOR -->
+  <section class="screen" id="scrLoading" data-active>
+    <div class="loading-box">
+      <div class="loader-dots"><b></b><b></b><b></b><b></b></div>
+      <p id="loadingText">Hazırlanıyor…</p>
+      <p class="hint" id="loadingHint"></p>
+    </div>
+  </section>
+
+  <!-- ANA EKRAN -->
+  <section class="screen" id="scrHome">
+    <div class="home-grid">
+      <div class="home-left">
+        <h1 class="event-title" id="eventTitle">Dans Challenge</h1>
+        <p class="lede">Ekrandaki dansı taklit et, ne kadar tuttuğunu anında gör.</p>
+
+        <div class="song-head">
+          <h2>Şarkı seç</h2>
+          <button class="link-btn" id="btnManageSongs">Şarkıları yönet</button>
+        </div>
+        <div class="songs" id="songList" role="listbox" aria-label="Şarkılar"></div>
+
+        <ol class="steps" aria-label="Nasıl oynanır">
+          <li><b>1</b><span>Kameranın karşısına geç<small>Tüm vücudun görünsün, 2-3 adım geri</small></span></li>
+          <li><b>2</b><span>Dansı taklit et<small>Ayna gibi ya da birebir, ikisi de olur</small></span></li>
+          <li><b>3</b><span>Skorunu al<small>Fotoğrafını indir, tabloya adını yazdır</small></span></li>
+        </ol>
+
+        <button class="start-btn" id="btnStart">
+          <span>Başla</span>
+          <kbd>Space</kbd>
+        </button>
+      </div>
+
+      <div class="home-right">
+        <div class="cam-card" id="homeCamCard">
+          <div class="cam-stage" id="homeCamStage"></div>
+          <div class="cam-status">
+            <span class="chip" id="camChip">Kamera açılıyor…</span>
+            <span class="chip" id="bodyChip" hidden>Vücut algılandı</span>
+          </div>
+        </div>
+        <div class="board">
+          <h2>En iyiler <span class="board-song" id="boardSong"></span></h2>
+          <ol class="board-list" id="boardList"></ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ISIM -->
+  <section class="screen overlay-screen" id="scrName">
+    <form class="name-card" id="nameForm" autocomplete="off">
+      <h2>Adın ne?</h2>
+      <p class="hint">Skor tablosunda bu isim görünecek. Boş bırakırsan "Misafir" yazar.</p>
+      <input id="nameInput" maxlength="18" placeholder="Adın" aria-label="Adın">
+      <div class="row">
+        <button type="button" class="ghost-btn" id="btnNameBack">Geri <kbd>Esc</kbd></button>
+        <button type="submit" class="start-btn small"><span>Devam</span><kbd>Enter</kbd></button>
+      </div>
+    </form>
+  </section>
+
+  <!-- OYUN (hazirlik + geri sayim + dans) -->
+  <section class="screen" id="scrPlay">
+    <div class="hud">
+      <div class="hud-song" id="hudSong"></div>
+      <div class="hud-center">
+        <div class="hud-score"><span id="hudPoints">0</span><small>puan</small></div>
+        <div class="hud-combo" id="hudCombo" hidden><span id="hudComboN">0</span><small>kombo</small></div>
+      </div>
+      <div class="hud-player" id="hudPlayer"></div>
+      <div class="progress"><i id="hudProgress"></i></div>
+    </div>
+    <div class="stage-grid">
+      <div class="panel ref-panel">
+        <video id="refVideo" playsinline preload="auto"></video>
+        <span class="panel-tag">Bunu yap</span>
+      </div>
+      <div class="panel cam-panel" id="playCamPanel">
+        <div class="cam-stage" id="playCamStage"></div>
+        <span class="panel-tag">Sen</span>
+        <div class="judge" id="judge" aria-live="polite"></div>
+        <div class="ready-guide" id="readyGuide">
+          <div class="guide-body" aria-hidden="true"></div>
+          <p id="readyText">Tüm vücudun görünecek şekilde geri çekil</p>
+          <p class="hint"><kbd>Space</kbd> ile beklemeden başla</p>
+        </div>
+      </div>
+    </div>
+    <div class="countdown" id="countdown" aria-live="assertive"></div>
+    <canvas class="fx" id="fxCanvas"></canvas>
+  </section>
+
+  <!-- SONUC -->
+  <section class="screen" id="scrResult">
+    <div class="result-grid">
+      <div class="photo-wrap">
+        <canvas id="photoCanvas" width="720" height="900"></canvas>
+        <button class="ghost-btn" id="btnDownload">Fotoğrafı indir</button>
+      </div>
+      <div class="result-info">
+        <p class="result-name" id="resName"></p>
+        <div class="result-acc"><small>%</small><span id="resAcc">0</span></div>
+        <div class="stars" id="resStars" aria-label=""></div>
+        <p class="result-title" id="resTitle"></p>
+        <div class="counts" id="resCounts"></div>
+        <dl class="result-stats">
+          <div><dt>Puan</dt><dd id="resPoints">0</dd></div>
+          <div><dt>En uzun kombo</dt><dd id="resCombo">0</dd></div>
+          <div><dt>Sıralama</dt><dd id="resRank">–</dd></div>
+        </dl>
+        <div class="row start">
+          <button class="start-btn small" id="btnAgain"><span>Tekrar oyna</span><kbd>Space</kbd></button>
+          <button class="ghost-btn" id="btnHome">Ana ekran <kbd>Esc</kbd></button>
+        </div>
+        <p class="hint" id="resAuto"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- AYARLAR -->
+<dialog class="modal" id="dlgSettings">
+  <form method="dialog" class="modal-body" id="settingsForm">
+    <div class="modal-head">
+      <h2>Ayarlar</h2>
+      <button class="icon-btn" value="close" aria-label="Kapat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab" data-tab="tabGame" aria-selected="true">Oyun</button>
+      <button type="button" class="tab" data-tab="tabSongs" aria-selected="false">Şarkılar</button>
+      <button type="button" class="tab" data-tab="tabLook" aria-selected="false">Görünüm</button>
+    </div>
+
+    <div class="tab-panel" id="tabGame">
+      <label class="field"><span>Kamera</span>
+        <select id="setCamera"></select>
+        <small>Listede güvenlik kamerası yoksa rehberdeki "Güvenlik kamerası" bölümüne bak.</small>
+      </label>
+      <label class="field"><span>Zorluk</span>
+        <select id="setDifficulty">
+          <option value="kolay">Kolay: herkes eğlensin</option>
+          <option value="normal">Normal</option>
+          <option value="zor">Zor: sadece iyi dansçılar 5 yıldız alır</option>
+        </select>
+      </label>
+      <label class="field"><span>Taklit şekli</span>
+        <select id="setMirror">
+          <option value="auto">Otomatik: ayna gibi mi birebir mi, kendisi anlar</option>
+          <option value="on">Hep ayna gibi</option>
+          <option value="off">Hep birebir</option>
+        </select>
+      </label>
+      <label class="field"><span>Kamera gecikmesi: <b id="latencyVal">0.10</b> sn</span>
+        <input type="range" id="setLatency" min="0" max="1.5" step="0.05">
+        <small>Laptop kamerasında 0.1 yeterli. Güvenlik kamerası görüntüsü geç geliyorsa artır.</small>
+      </label>
+      <label class="field"><span>Performans</span>
+        <select id="setModel">
+          <option value="1">Dengeli (önerilen)</option>
+          <option value="0">Hızlı: kasarsa bunu seç</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="setFps"> Kare hızını göster</label>
+      <div class="field">
+        <span>Skor tablosu</span>
+        <button type="button" class="danger-btn" id="btnResetBoard">Bu şarkının tablosunu sıfırla</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tabSongs" hidden>
+      <div class="song-admin" id="songAdmin"></div>
+      <label class="add-song">
+        <input type="file" id="addSongInput" accept="video/*" hidden>
+        <span class="ghost-btn">+ Video ekle</span>
+        <small>Tek kişinin önden, tüm vücudu görünerek dans ettiği bir video seç. İlk eklemede bir kez analiz edilir.</small>
+      </label>
+    </div>
+
+    <div class="tab-panel" id="tabLook" hidden>
+      <label class="field"><span>Başlık</span><input id="setTitle" maxlength="40"></label>
+      <label class="field"><span>Kulüp adı</span><input id="setClub" maxlength="60"></label>
+      <label class="field"><span>Sonuç ekranından ana ekrana dönüş</span>
+        <select id="setAutoReturn">
+          <option value="0">Otomatik dönme</option>
+          <option value="20">20 sn sonra</option>
+          <option value="30">30 sn sonra</option>
+          <option value="60">60 sn sonra</option>
+        </select>
+      </label>
+      <p class="hint">Logo için <code>logo.png</code> dosyasını uygulama klasörüne koyman yeterli.</p>
+    </div>
+  </form>
+</dialog>
+
+<!-- SARKI DUZENLE -->
+<dialog class="modal" id="dlgSong">
+  <form method="dialog" class="modal-body" id="songForm">
+    <div class="modal-head">
+      <h2>Şarkıyı düzenle</h2>
+      <button class="icon-btn" value="close" aria-label="Kapat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <label class="field"><span>Şarkı adı</span><input id="songTitle" maxlength="40"></label>
+    <div class="editor-video"><video id="editVideo" playsinline controls preload="auto"></video></div>
+    <div class="seg-row">
+      <div class="field"><span>Başlangıç</span><b id="segStart">0.0 sn</b>
+        <button type="button" class="ghost-btn" id="btnSegStart">Şu anki yer</button></div>
+      <div class="field"><span>Bitiş</span><b id="segEnd">0.0 sn</b>
+        <button type="button" class="ghost-btn" id="btnSegEnd">Şu anki yer</button></div>
+      <div class="field"><span>Süre</span><b id="segLen">0 sn</b></div>
+    </div>
+    <p class="hint">Videoyu oynatıp istediğin yerde durdur, sonra "Şu anki yer"e bas. Stant için 30-45 sn idealdir.</p>
+    <div class="row">
+      <button type="button" class="danger-btn" id="btnSongDelete">Şarkıyı sil</button>
+      <button type="button" class="start-btn small" id="btnSongSave"><span>Kaydet</span></button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ANALIZ -->
+<dialog class="modal small" id="dlgAnalyze">
+  <div class="modal-body">
+    <h2>Dans analiz ediliyor</h2>
+    <p class="hint" id="anText">Video kare kare inceleniyor. Bu her şarkı için bir kez yapılır.</p>
+    <div class="an-video" id="anVideoBox"></div>
+    <div class="bar"><i id="anBar"></i></div>
+    <p id="anPct">%0</p>
+    <button type="button" class="ghost-btn" id="btnAnCancel">İptal</button>
+  </div>
+</dialog>
+
+<div class="fps" id="fps" hidden></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="lib/pose/pose.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
