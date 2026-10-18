@@ -60,13 +60,13 @@ Skor tablosu her cihazın kendi tarayıcısında tutulur. Stanttaki laptopun tab
 - `pose` yazmazsan uygulama videoyu ilk oynatılışta kendisi analiz eder.
 - Hazır analizi önceden üretmek için üst klasörde: `venv\Scripts\python poz_cikar.py dans-challenge\sarkilar\yeni.mp4` (videonun yanına `yeni.pose.json` yazar).
 
-**Ekranda resmi klip, skor tek kişilik dans videosundan:** Üst klasörde
+**Tek komutla şarkı eklemek:** Üst klasörde
 
 ```
-venv\Scripts\python sarki_hazirla.py yeni "Yeni Şarkı" klip.mp4 tekli-dans.mp4
+venv\Scripts\python sarki_hazirla.py yeni "Yeni Şarkı" tekli-dans.mp4
 ```
 
-Dans videosunun sesi klipte aranır, klip o bölümden kesilir, poz verisi klibin zamanına kaydırılır ve `sarkilar.json` güncellenir. Ses bulunamazsa `--kayma SANİYE` ile elle verilebilir. Gerekli paketler: `venv\Scripts\pip install -r requirements.txt` ve FFmpeg.
+Dansçının hareket etmeye başladığı ve bitirdiği an bulunup müziğin vuruşuna oturtulur, video o bölümden kesilir (başta 1 sn giriş payı), poz verisi çıkarılır ve `sarkilar.json` güncellenir. Kesimi elle vermek için `--bas SANİYE --son SANİYE`. Gerekli paketler: `venv\Scripts\pip install -r requirements.txt` ve FFmpeg.
 
 **İyi bir referans video:** Tek kişi, önden çekilmiş, baştan sona tüm vücut görünüyor, sabit kamera.
 

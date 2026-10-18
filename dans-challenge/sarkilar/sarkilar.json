@@ -1,84 +1,92 @@
 {
   "songs": [
     {
-      "id": "manifest",
-      "title": "Manifest",
-      "file": "sarkilar/manifest.mp4",
-      "pose": "sarkilar/manifest.pose.json",
-      "start": 0,
-      "end": 20.9
-    },
-    {
       "id": "tralala",
       "title": "Tralala",
       "file": "sarkilar/tralala.mp4",
       "pose": "sarkilar/tralala.pose.json",
-      "start": 0.5,
-      "end": 22.65
+      "start": 0.0,
+      "end": 21.15
     },
     {
       "id": "toz-pembe",
       "title": "Toz Pembe",
       "file": "sarkilar/toz-pembe.mp4",
       "pose": "sarkilar/toz-pembe.pose.json",
-      "start": 0.5,
-      "end": 18.58
+      "start": 0.0,
+      "end": 19.08
     },
     {
       "id": "snap",
       "title": "Snap",
       "file": "sarkilar/snap.mp4",
       "pose": "sarkilar/snap.pose.json",
-      "start": 0.5,
-      "end": 21.86
+      "start": 0.047,
+      "end": 18.93
     },
     {
       "id": "ariyo",
       "title": "Arıyo",
       "file": "sarkilar/ariyo.mp4",
       "pose": "sarkilar/ariyo.pose.json",
-      "start": 0,
-      "end": 18.22
+      "start": 0.0,
+      "end": 21.95
     },
     {
       "id": "kts",
       "title": "KTS",
       "file": "sarkilar/kts.mp4",
       "pose": "sarkilar/kts.pose.json",
-      "start": 0.5,
-      "end": 26.92
+      "start": 0.019,
+      "end": 23.44
     },
     {
       "id": "zamansizdik",
       "title": "Zamansızdık",
       "file": "sarkilar/zamansizdik.mp4",
       "pose": "sarkilar/zamansizdik.pose.json",
-      "start": 0.5,
-      "end": 34.52
+      "start": 0.0,
+      "end": 29.62
     },
     {
       "id": "ruya",
       "title": "Rüya",
       "file": "sarkilar/ruya.mp4",
       "pose": "sarkilar/ruya.pose.json",
-      "start": 0.5,
-      "end": 17.45
+      "start": 0.0,
+      "end": 15.48
     },
     {
       "id": "daha-iyi",
       "title": "Daha İyi",
       "file": "sarkilar/daha-iyi.mp4",
       "pose": "sarkilar/daha-iyi.pose.json",
-      "start": 0.5,
-      "end": 21.85
+      "start": 0.006,
+      "end": 19.76
     },
     {
       "id": "basrol-sensin",
       "title": "Başrol Sensin",
       "file": "sarkilar/basrol-sensin.mp4",
       "pose": "sarkilar/basrol-sensin.pose.json",
-      "start": 0.5,
-      "end": 21.45
+      "start": 0.0,
+      "end": 19.55
+    },
+    {
+      "id": "manifest",
+      "title": "Manifest",
+      "file": "sarkilar/manifest.mp4",
+      "pose": "sarkilar/manifest.pose.json",
+      "start": 0.0,
+      "end": 18.08
+    },
+    {
+      "id": "hileli",
+      "title": "Hileli",
+      "file": "sarkilar/hileli.mp4",
+      "pose": "sarkilar/hileli.pose.json",
+      "start": 0.026,
+      "end": 20.38
     }
   ]
 }
