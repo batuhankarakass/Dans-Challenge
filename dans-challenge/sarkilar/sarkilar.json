@@ -13,16 +13,16 @@
       "title": "Toz Pembe",
       "file": "sarkilar/toz-pembe.mp4",
       "pose": "sarkilar/toz-pembe.pose.json",
-      "start": 0.0,
-      "end": 19.08
+      "start": 0.038,
+      "end": 17.45
     },
     {
       "id": "snap",
       "title": "Snap",
       "file": "sarkilar/snap.mp4",
       "pose": "sarkilar/snap.pose.json",
-      "start": 0.047,
-      "end": 18.93
+      "start": 0.021,
+      "end": 20.17
     },
     {
       "id": "ariyo",
@@ -37,16 +37,16 @@
       "title": "KTS",
       "file": "sarkilar/kts.mp4",
       "pose": "sarkilar/kts.pose.json",
-      "start": 0.019,
-      "end": 23.44
+      "start": 0.026,
+      "end": 19.58
     },
     {
       "id": "zamansizdik",
       "title": "Zamansızdık",
       "file": "sarkilar/zamansizdik.mp4",
       "pose": "sarkilar/zamansizdik.pose.json",
-      "start": 0.0,
-      "end": 29.62
+      "start": 0.024,
+      "end": 33.24
     },
     {
       "id": "ruya",
@@ -61,8 +61,8 @@
       "title": "Daha İyi",
       "file": "sarkilar/daha-iyi.mp4",
       "pose": "sarkilar/daha-iyi.pose.json",
-      "start": 0.006,
-      "end": 19.76
+      "start": 0.045,
+      "end": 10.66
     },
     {
       "id": "basrol-sensin",
@@ -78,15 +78,23 @@
       "file": "sarkilar/manifest.mp4",
       "pose": "sarkilar/manifest.pose.json",
       "start": 0.0,
-      "end": 18.08
+      "end": 23.55
     },
     {
       "id": "hileli",
       "title": "Hileli",
       "file": "sarkilar/hileli.mp4",
       "pose": "sarkilar/hileli.pose.json",
-      "start": 0.026,
-      "end": 20.38
+      "start": 0.0,
+      "end": 21.55
+    },
+    {
+      "id": "amator",
+      "title": "Amatör",
+      "file": "sarkilar/amator.mp4",
+      "pose": "sarkilar/amator.pose.json",
+      "start": 0.031,
+      "end": 13.65
     }
   ]
 }

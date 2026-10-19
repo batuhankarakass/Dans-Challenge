@@ -226,7 +226,11 @@
     if (n === "NotReadableError" || n === "TrackStartError" || n === "AbortError") return ["Kamera kullanımda", "Zoom, Teams, Discord veya DroidCam gibi kamerayı kullanan uygulamaları kapat, sonra sayfayı yenile."];
     return ["Kamera açılamadı", (e && e.message) || ""];
   }
-  async function startCamera() {
+  let camGen = 0;
+  async function startCamera(retry = true) {
+    // ayni anda iki acilis olursa (acilis + ayarlardan kamera secimi) eski olanin sonucu yok sayilir;
+    // yoksa biri goruntuyu gosterirken digeri "Kamera kullanimda" yazar
+    const gen = ++camGen;
     stopCamera();
     $("#camChip").textContent = "Kamera açılıyor…"; $("#camChip").className = "chip";
     try {
@@ -249,6 +253,7 @@
             stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
           } else throw e;
         }
+        if (gen !== camGen) { stream.getTracks().forEach((t) => t.stop()); return; }
         cam.stream = stream;
         cam.video.src = ""; cam.video.srcObject = stream;
         await cam.video.play().catch(() => {});
@@ -266,6 +271,13 @@
       fillCameraList();
     } catch (e) {
       console.warn("kamera", e);
+      if (gen !== camGen) return;
+      // Windows kamerayi onceki sayfadan (yenileme) gec birakabiliyor: bir kez daha dene
+      if (retry && (e.name === "NotReadableError" || e.name === "AbortError" || e.name === "TrackStartError")) {
+        await sleep(1200);
+        if (gen === camGen) return startCamera(false);
+        return;
+      }
       cam.ok = false;
       const [t, b] = e.name === "Unsupported" ? ["Kamera kullanılamıyor", e.message] : camErrorText(e);
       camMessage(t, b);

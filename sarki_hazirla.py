@@ -65,8 +65,8 @@ def main():
     cut0 = max(0.0, start - LEAD)
     out_mp4 = os.path.join(SARKILAR, a.id + ".mp4")
     subprocess.run([ses_hizala.ffmpeg_exe(), "-v", "error", "-y", "-ss", f"{cut0:.3f}", "-to", f"{end + 0.3:.3f}",
-                    "-i", a.dans, "-vf", "scale=-2:'min(1280,ih)'", "-c:v", "libx264", "-preset", "medium",
-                    "-crf", "22", "-r", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
+                    "-i", a.dans, "-vf", "scale=-2:'min(1920,ih)'", "-c:v", "libx264", "-preset", "medium",
+                    "-crf", "21", "-r", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
                     "-af", f"afade=t=in:d=0.4,afade=t=out:st={max(0, end - cut0 - 0.5):.2f}:d=0.8",
                     "-movflags", "+faststart", out_mp4], check=True)
 
