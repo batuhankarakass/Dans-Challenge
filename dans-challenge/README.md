@@ -68,6 +68,8 @@ venv\Scripts\python sarki_hazirla.py yeni "Yeni Şarkı" tekli-dans.mp4
 
 Dansçının hareket etmeye başladığı ve bitirdiği an bulunup müziğin vuruşuna oturtulur, video o bölümden kesilir (başta 1 sn giriş payı), poz verisi çıkarılır ve `sarkilar.json` güncellenir. Kesimi elle vermek için `--bas SANİYE --son SANİYE`. Gerekli paketler: `venv\Scripts\pip install -r requirements.txt` ve FFmpeg.
 
+**Puanlamayı değiştirdikten sonra:** `node dans-challenge/engine.test.js` her şarkıda kendi dansın yüksek, başka dansın düşük puan aldığını kontrol eder.
+
 **İyi bir referans video:** Tek kişi, önden çekilmiş, baştan sona tüm vücut görünüyor, sabit kamera.
 
 ## Ayarlar (sağ üstteki çark)

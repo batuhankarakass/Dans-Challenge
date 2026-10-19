@@ -510,7 +510,9 @@
    * gercekten gosterdigi kareyi garanti eder; sarma (seek) bazen eski kareyi verebiliyor.
    */
   async function analyzeSong(song) {
-    await bootReady;   // model hazir olmadan analiz bos kare uretir
+    await bootReady;
+    // model yokken analiz bos kare uretir ve bozuk sonuc kalici kaydedilir
+    if (!poseSys.ready && !sim) { toast("Hareket algılama hazır değil, video analiz edilemedi."); return null; }
     const dlg = $("#dlgAnalyze"), box = $("#anVideoBox");
     const v = document.createElement("video");
     v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = song.src;
@@ -632,8 +634,12 @@
     async begin(name) {
       const song = currentSong();
       if (!song) { toast("Önce bir şarkı ekle (Ayarlar > Şarkılar)."); return show("home"); }
-      if ((!poseSys.ready && !sim) || !cam.ok) { toast("Hazırlanıyor, bir saniye…"); await bootReady; }
-      if (!poseSys.ready && !sim) return;
+      if ((!poseSys.ready && !sim) || !cam.ok) {
+        toast("Hazırlanıyor, bir saniye…");
+        await bootReady;
+        if (screen !== "name" && screen !== "result") return;   // beklerken Esc ile cikildi
+      }
+      if (!poseSys.ready && !sim) return show("loading");
       if (!cam.ok) { toast("Kamera çalışmıyor. Kamera kartındaki mesaja bak."); return show("home"); }
       this.name = (name || "").trim() || "Misafir";
       this.song = song;
@@ -1039,6 +1045,7 @@
     show("home");
     requestAnimationFrame(loop);
     await bootReady;
+    if (!poseSys.ready && !sim) return show("loading");   // model hatasi ana ekrandan once geldiyse ustu kapanmasin
     if (sim) setInterval(() => {
       if (!cam.ok || analyzing) return;
       const t = game.state === "play" ? refVideo.currentTime - TEST.simLag : cam.video.currentTime;
