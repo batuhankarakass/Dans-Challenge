@@ -35,22 +35,6 @@ Elle başlatmak istersen `oyun` klasöründe `py serve.py` yaz, sonra tarayıcı
 | S | Ayarlar |
 | D | Sonuç ekranında fotoğrafı indir |
 
-## Arkadaşlara link olarak göndermek (GitHub Pages)
-
-Bir kere yapılır, sonra herkes linke tıklayıp oynar. Linkte kamera da çalışır.
-
-1. https://github.com adresinde oturum aç, sağ üstte **+** > **New repository**.
-2. İsim olarak `dans-challenge` yaz, **Public** seçili olsun, **Create repository**.
-3. Açılan sayfada **uploading an existing file** bağlantısına tıkla.
-4. `oyun` klasörünün **içindeki her şeyi** (klasörler dahil: `lib`, `fonts`, `sarkilar`) sürükleyip bırak. Yükleme bitince **Commit changes**.
-5. Repo sayfasında **Settings** > soldan **Pages**. "Branch" kısmında `main` ve `/ (root)` seç, **Save**.
-6. 1-2 dakika sonra aynı sayfanın üstünde link çıkar: `https://KULLANICI-ADIN.github.io/dans-challenge/`
-
-Sonradan bir şeyi değiştirirsen aynı dosyayı tekrar yüklemen yeterli, link aynı kalır.
-
-Not: Repo herkese açık olduğu için içindeki dans videosu da herkese açık olur. Başkasına ait bir video ise telif şikâyeti gelebilir.
-
-Skor tablosu her cihazın kendi tarayıcısında tutulur. Stanttaki laptopun tablosu sadece o laptopta görünür. Tablo tüm şarkılar için tektir ve yüzdeye göre sıralanır.
 
 ## Şarkı eklemek ve değiştirmek
 
