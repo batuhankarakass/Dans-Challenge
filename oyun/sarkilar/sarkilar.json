@@ -107,6 +107,24 @@
       "pose": "sarkilar/amator.pose.json",
       "start": 0.031,
       "end": 13.65
+    },
+    {
+      "id": "crush",
+      "title": "CRUSH!",
+      "tur": "Pop",
+      "file": "sarkilar/crush.mp4",
+      "pose": "sarkilar/crush.pose.json",
+      "start": 0.001,
+      "end": 27.28
+    },
+    {
+      "id": "lush-life",
+      "title": "Lush Life",
+      "tur": "Yabancı",
+      "file": "sarkilar/lush-life.mp4",
+      "pose": "sarkilar/lush-life.pose.json",
+      "start": 0.021,
+      "end": 20.97
     }
   ]
 }
