@@ -3,7 +3,7 @@
     {
       "id": "tralala",
       "title": "Tralala",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/tralala.mp4",
       "pose": "sarkilar/tralala.pose.json",
       "start": 0.0,
@@ -12,7 +12,7 @@
     {
       "id": "toz-pembe",
       "title": "Toz Pembe",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/toz-pembe.mp4",
       "pose": "sarkilar/toz-pembe.pose.json",
       "start": 0.038,
@@ -21,7 +21,7 @@
     {
       "id": "snap",
       "title": "Snap",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/snap.mp4",
       "pose": "sarkilar/snap.pose.json",
       "start": 0.021,
@@ -30,7 +30,7 @@
     {
       "id": "ariyo",
       "title": "Arıyo",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/ariyo.mp4",
       "pose": "sarkilar/ariyo.pose.json",
       "start": 0.0,
@@ -39,7 +39,7 @@
     {
       "id": "kts",
       "title": "KTS",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/kts.mp4",
       "pose": "sarkilar/kts.pose.json",
       "start": 0.026,
@@ -48,7 +48,7 @@
     {
       "id": "zamansizdik",
       "title": "Zamansızdık",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/zamansizdik.mp4",
       "pose": "sarkilar/zamansizdik.pose.json",
       "start": 0.024,
@@ -57,7 +57,7 @@
     {
       "id": "ruya",
       "title": "Rüya",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/ruya.mp4",
       "pose": "sarkilar/ruya.pose.json",
       "start": 0.0,
@@ -66,7 +66,7 @@
     {
       "id": "daha-iyi",
       "title": "Daha İyi",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/daha-iyi.mp4",
       "pose": "sarkilar/daha-iyi.pose.json",
       "start": 0.045,
@@ -75,7 +75,7 @@
     {
       "id": "basrol-sensin",
       "title": "Başrol Sensin",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/basrol-sensin.mp4",
       "pose": "sarkilar/basrol-sensin.pose.json",
       "start": 0.0,
@@ -84,7 +84,7 @@
     {
       "id": "manifest",
       "title": "Manifest",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/manifest.mp4",
       "pose": "sarkilar/manifest.pose.json",
       "start": 0.0,
@@ -93,7 +93,7 @@
     {
       "id": "hileli",
       "title": "Hileli",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/hileli.mp4",
       "pose": "sarkilar/hileli.pose.json",
       "start": 0.0,
@@ -102,7 +102,7 @@
     {
       "id": "amator",
       "title": "Amatör",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/amator.mp4",
       "pose": "sarkilar/amator.pose.json",
       "start": 0.031,
@@ -111,7 +111,7 @@
     {
       "id": "crush",
       "title": "CRUSH!",
-      "tur": "Pop",
+      "tur": "Türkçe",
       "file": "sarkilar/crush.mp4",
       "pose": "sarkilar/crush.pose.json",
       "start": 0.001,
@@ -125,6 +125,114 @@
       "pose": "sarkilar/lush-life.pose.json",
       "start": 0.021,
       "end": 20.97
+    },
+    {
+      "id": "like-jennie",
+      "title": "like JENNIE",
+      "tur": "K-Pop",
+      "file": "sarkilar/like-jennie.mp4",
+      "pose": "sarkilar/like-jennie.pose.json",
+      "start": 0.011,
+      "end": 42.23
+    },
+    {
+      "id": "pink-venom",
+      "title": "Pink Venom",
+      "tur": "K-Pop",
+      "file": "sarkilar/pink-venom.mp4",
+      "pose": "sarkilar/pink-venom.pose.json",
+      "start": 0.009,
+      "end": 57.69
+    },
+    {
+      "id": "money",
+      "title": "Money",
+      "tur": "K-Pop",
+      "file": "sarkilar/money.mp4",
+      "pose": "sarkilar/money.pose.json",
+      "start": 0.04,
+      "end": 47.66
+    },
+    {
+      "id": "jump",
+      "title": "JUMP",
+      "tur": "K-Pop",
+      "file": "sarkilar/jump.mp4",
+      "pose": "sarkilar/jump.pose.json",
+      "start": 0.006,
+      "end": 31.62
+    },
+    {
+      "id": "solo",
+      "title": "SOLO",
+      "tur": "K-Pop",
+      "file": "sarkilar/solo.mp4",
+      "pose": "sarkilar/solo.pose.json",
+      "start": 0.0,
+      "end": 31.22
+    },
+    {
+      "id": "benim-olsana",
+      "title": "Benim Olsana",
+      "tur": "Türkçe",
+      "file": "sarkilar/benim-olsana.mp4",
+      "pose": "sarkilar/benim-olsana.pose.json",
+      "start": 0.057,
+      "end": 28.81
+    },
+    {
+      "id": "pes",
+      "title": "PES",
+      "tur": "Türkçe",
+      "file": "sarkilar/pes.mp4",
+      "pose": "sarkilar/pes.pose.json",
+      "start": 0.0,
+      "end": 14.91
+    },
+    {
+      "id": "yuh",
+      "title": "YUH!",
+      "tur": "Türkçe",
+      "file": "sarkilar/yuh.mp4",
+      "pose": "sarkilar/yuh.pose.json",
+      "start": 0.063,
+      "end": 34.75
+    },
+    {
+      "id": "sakin-ol-champ",
+      "title": "Sakin Ol Champ",
+      "tur": "Türkçe",
+      "file": "sarkilar/sakin-ol-champ.mp4",
+      "pose": "sarkilar/sakin-ol-champ.pose.json",
+      "start": 0.0,
+      "end": 14.22
+    },
+    {
+      "id": "tuzak",
+      "title": "Tuzak",
+      "tur": "Türkçe",
+      "file": "sarkilar/tuzak.mp4",
+      "pose": "sarkilar/tuzak.pose.json",
+      "start": 0.05,
+      "end": 19.4
+    },
+    {
+      "id": "salla",
+      "title": "Salla",
+      "tur": "Türkçe",
+      "file": "sarkilar/salla.mp4",
+      "pose": "sarkilar/salla.pose.json",
+      "start": 0.0,
+      "end": 31.95
+    },
+    {
+      "id": "bulamazsin",
+      "title": "Bulamazsın",
+      "tur": "Türkçe",
+      "file": "sarkilar/bulamazsin.mp4",
+      "pose": "sarkilar/bulamazsin.pose.json",
+      "start": 0.0,
+      "end": 20.68
     }
   ]
 }

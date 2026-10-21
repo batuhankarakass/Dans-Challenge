@@ -45,14 +45,14 @@ Elle başlatmak istersen `oyun` klasöründe `py serve.py` yaz, sonra tarayıcı
 ```json
 {
   "songs": [
-    { "id": "manifest", "title": "Manifest", "tur": "Pop", "file": "sarkilar/manifest.mp4", "pose": "sarkilar/manifest.pose.json", "start": 0, "end": 20.9 },
+    { "id": "manifest", "title": "Manifest", "tur": "Türkçe", "file": "sarkilar/manifest.mp4", "pose": "sarkilar/manifest.pose.json", "start": 0, "end": 20.9 },
     { "id": "yeni", "title": "Yeni Şarkı", "tur": "Oyun Havası", "file": "sarkilar/yeni.mp4", "start": 12, "end": 52 }
   ]
 }
 ```
 
 - `id`: boşluksuz, benzersiz bir ad.
-- `tur`: ana ekrandaki sekme (Pop, Oyun Havası, Roman Havası…). Aynı yazılan türler aynı sekmede toplanır. Birden fazla tür olunca sekmeler kendiliğinden çıkar.
+- `tur`: ana ekrandaki sekme (Türkçe, K-Pop, Yabancı…). Aynı yazılan türler aynı sekmede toplanır. Birden fazla tür olunca sekmeler kendiliğinden çıkar.
 - `start`, `end`: dansın kaçıncı saniyeden başlayıp nerede bittiği. Stant için 30-45 saniye ideal.
 - `pose` yazmazsan uygulama videoyu ilk oynatılışta kendisi analiz eder.
 - Hazır analizi önceden üretmek için ana klasörde: `venv\Scripts\python araclar\poz_cikar.py oyun\sarkilar\yeni.mp4` (videonun yanına `yeni.pose.json` yazar).
@@ -63,9 +63,9 @@ Elle başlatmak istersen `oyun` klasöründe `py serve.py` yaz, sonra tarayıcı
 venv\Scripts\python araclar\sarki_hazirla.py yeni "Yeni Şarkı" tekli-dans.mp4 --tur "Oyun Havası"
 ```
 
-`--tur` yazmazsan şarkı "Pop" sekmesine girer.
+`--tur` yazmazsan şarkı "Türkçe" sekmesine girer.
 
-Dansçının hareket etmeye başladığı ve bitirdiği an bulunup müziğin vuruşuna oturtulur, video o bölümden kesilir (başta 1 sn giriş payı), poz verisi çıkarılır ve `sarkilar.json` güncellenir. Kesimi elle vermek için `--bas SANİYE --son SANİYE`. Gerekli paketler: `venv\Scripts\python -m pip install -r araclar\requirements.txt` ve FFmpeg.
+Dansçının hareket etmeye başladığı ve bitirdiği an bulunup müziğin vuruşuna oturtulur. Dans 60 saniyeden uzunsa sesi en gür 60 saniye (genelde nakarat) seçilir, süreyi `--max SANİYE` ile değiştirebilirsin. Videodaki müzik kısık ya da mikrofonla kaydedilmişse `--ses orijinal.m4a` ver: şarkının orijinal sesi melodiden videoya hizalanıp konur; hizalama net değilse videonun kendi sesi diğer şarkılarla aynı seviyeye yükseltilir. Video o bölümden kesilir (başta 1 sn giriş payı), poz verisi çıkarılır ve `sarkilar.json` güncellenir. Kesimi elle vermek için `--bas SANİYE --son SANİYE`. Gerekli paketler: `venv\Scripts\python -m pip install -r araclar\requirements.txt` ve FFmpeg.
 
 **Puanlamayı değiştirdikten sonra:** `node oyun/engine.test.js` her şarkıda kendi dansın yüksek, başka dansın düşük puan aldığını kontrol eder.
 

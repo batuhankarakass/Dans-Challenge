@@ -76,6 +76,40 @@ def align(song_path, clip_path, speeds=(1.0, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 0.
     return {"offset": round(best[0], 3), "speed": best[1], "corr": round(best[2], 3), "z": round(best[3], 1)}
 
 
+def chroma(x, fps=10):
+    """12 nota sinifi enerjisi (kromagram), kare basina normalize: kisik/yankili kayitta da melodiyi korur."""
+    hop, n = SR // fps, 4096
+    m = len(x) // hop - n // hop
+    if m <= 4:
+        return np.zeros((1, 12))
+    frames = np.lib.stride_tricks.as_strided(x, shape=(m, n), strides=(x.strides[0] * hop, x.strides[0]))
+    mag = np.abs(np.fft.rfft(frames * np.hanning(n), axis=1))
+    f = np.fft.rfftfreq(n, 1 / SR)
+    ok = (f > 80) & (f < 4000)
+    pc = np.round(12 * np.log2(f[ok] / 440)).astype(int) % 12
+    c = np.zeros((m, 12))
+    for k in range(12):
+        c[:, k] = mag[:, ok][:, pc == k].sum(axis=1)
+    c = np.log1p(c)
+    c -= c.mean(axis=1, keepdims=True)
+    return c / (np.linalg.norm(c, axis=1, keepdims=True) + 1e-9)
+
+
+def align_chroma(song_path, clip_path, fps=10):
+    """Kisa videonun sesi sarkinin neresinde (1x hiz): melodi uzerinden. {'offset', 'z'}"""
+    s, c = chroma(load(song_path), fps), chroma(load(clip_path), fps)
+    size = 1 << (len(s) + len(c)).bit_length()
+    corr = sum(np.fft.irfft(np.fft.rfft(s[:, k], size) * np.conj(np.fft.rfft(c[:, k], size)), size)[:len(s)]
+               for k in range(12)) / len(c)
+    k = int(np.argmax(corr))
+    mask = np.ones_like(corr, bool); mask[max(0, k - fps):k + fps] = False
+    z = (corr[k] - corr[mask].mean()) / (corr[mask].std() + 1e-9)
+    # ikinci en iyi yer (tekrarlanan nakarat): net degilse hangi tekrar oldugu belirsizdir
+    second = float(corr[mask].max()) if mask.any() else 0.0
+    return {"offset": round(k / fps, 2), "z": round(float(z), 1), "peak": round(float(corr[k]), 3),
+            "second": round(second, 3)}
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         sys.exit(__doc__)
