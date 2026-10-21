@@ -22,7 +22,7 @@
 
   // ------------------------------------------------------------ ayarlar
   const DEFAULTS = {
-    cameraId: "", difficulty: "normal", mirror: "auto", latency: 0.1, model: 1, fps: false,
+    cameraId: "", ipcamUrl: "rtsp://192.168.1.106:554/stream1", difficulty: "normal", mirror: "auto", latency: 0.1, model: 1, fps: false,
     title: "Dans Challenge", club: "Google Developer Groups on Campus", autoReturn: 30, songId: "", players: 1,
   };
   const store = {
@@ -326,11 +326,58 @@
     const stage = cam.video.parentElement; if (stage) stage.append(camMsgEl);
   }
   function stopCamera() {
-    if (cam.stream) cam.stream.getTracks().forEach((t) => t.stop());
+    if (cam.stream) { cam.stream.getTracks().forEach((t) => t.stop()); if (cam.stream.ipStop) cam.stream.ipStop(); }
     cam.stream = null; cam.ok = false;
+  }
+  // IP kamera: serve.py RTSP'yi ardisik JPEG olarak verir. Kareler tuvale cizilip MediaStream'e cevrilir,
+  // boylece oyunun geri kalani normal kamerayla ayni <video> uzerinden calisir. Baglanti koparsa yeniden baglanir.
+  const IPCAM = "ipcam", WINDOW = "window";
+  function ipcamStream(url) {
+    const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
+    const stream = canvas.captureStream(0), track = stream.getVideoTracks()[0];
+    let alive = true, ctrl = null;
+    stream.ipStop = () => { alive = false; if (ctrl) ctrl.abort(); };
+    return new Promise((resolve, reject) => {
+      let first = true;
+      const fail = (msg) => { if (first) { first = false; stream.ipStop(); reject(Object.assign(new Error(msg), { name: "IpCam" })); } };
+      setTimeout(() => fail("Kameradan görüntü gelmedi. Kablo bağlı mı, adres doğru mu?"), 10000);
+      (async () => {
+        while (alive) {
+          try {
+            ctrl = new AbortController();
+            const r = await fetch("/ipcam?url=" + encodeURIComponent(url), { signal: ctrl.signal, cache: "no-store" });
+            if (!r.ok) return fail(r.status === 404 ? "Uygulamayı baslat.bat ile aç (IP kamera internet linkinde çalışmaz)." : await r.text());
+            const rd = r.body.getReader();
+            let buf = new Uint8Array(0);
+            for (;;) {
+              const { done, value } = await rd.read();
+              if (done || !alive) break;
+              const b = new Uint8Array(buf.length + value.length); b.set(buf); b.set(value, buf.length); buf = b;
+              // JPEG sonu FF D9, basi FF D8; veri icinde FF hep 00 ile kacirildigi icin baska yerde cikmazlar.
+              // Birikmis kare varsa sadece sonuncusu cizilir, gecikme birikmesin.
+              let end = -1, start = -1;
+              for (let i = buf.length - 1; i > 0; i--) if (buf[i - 1] === 0xff && buf[i] === 0xd9) { end = i + 1; break; }
+              if (end < 0) continue;
+              for (let i = end - 3; i >= 0; i--) if (buf[i] === 0xff && buf[i + 1] === 0xd8) { start = i; break; }
+              const jpg = start < 0 ? null : new Blob([buf.subarray(start, end)], { type: "image/jpeg" });
+              buf = buf.slice(end);
+              if (!jpg) continue;
+              const bmp = await createImageBitmap(jpg).catch(() => null);
+              if (!bmp || !alive) continue;
+              if (canvas.width !== bmp.width || canvas.height !== bmp.height) { canvas.width = bmp.width; canvas.height = bmp.height; }
+              ctx.drawImage(bmp, 0, 0); bmp.close(); track.requestFrame();
+              if (first) { first = false; resolve(stream); }
+            }
+          } catch (e) { if (!alive) return; }
+          if (alive) await sleep(1000);
+        }
+      })();
+    });
   }
   function camErrorText(e) {
     const n = e && e.name;
+    if (n === "IpCam") return ["IP kamera açılamadı", e.message];
+    if (settings.cameraId === WINDOW && (n === "NotAllowedError" || n === "InvalidStateError")) return ["Pencere seçilmedi", "Ayarlar > Kamera'dan tekrar seç ve IPCBatchTool'un canlı görüntü penceresini seç."];
     if (n === "NotAllowedError" || n === "SecurityError") return ["Kamera izni verilmedi", "Adres çubuğundaki kamera simgesine tıklayıp izin ver, sonra sayfayı yenile."];
     if (n === "NotFoundError" || n === "DevicesNotFoundError") return ["Kamera bulunamadı", "Kameranın bağlı olduğundan emin ol."];
     if (n === "NotReadableError" || n === "TrackStartError" || n === "AbortError") return ["Kamera kullanımda", "Zoom, Teams, Discord veya DroidCam gibi kamerayı kullanan uygulamaları kapat, sonra sayfayı yenile."];
@@ -350,26 +397,37 @@
         if (cam.video.readyState < 1) await onceEvent(cam.video, "loadedmetadata");
         cam.label = "Test videosu";
       } else {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw Object.assign(new Error("Bu tarayıcı kamerayı desteklemiyor ya da sayfa güvenli adresten (https veya localhost) açılmadı."), { name: "Unsupported" });
-        }
-        const video = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
-        if (settings.cameraId) video.deviceId = { exact: settings.cameraId };
         let stream;
-        try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video }); }
-        catch (e) {
-          if (settings.cameraId && (e.name === "OverconstrainedError" || e.name === "NotFoundError")) {
-            settings.cameraId = ""; saveSettings(); delete video.deviceId;
-            stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
-          } else throw e;
+        if (settings.cameraId === IPCAM) stream = await ipcamStream(settings.ipcamUrl);
+        // Pencere yakalama: kameranin kendi programinin (IPCBatchTool) canli goruntu penceresi kamera yerine kullanilir
+        else if (settings.cameraId === WINDOW) stream = await navigator.mediaDevices.getDisplayMedia({ audio: false, video: { frameRate: { ideal: 30 } } });
+        else {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw Object.assign(new Error("Bu tarayıcı kamerayı desteklemiyor ya da sayfa güvenli adresten (https veya localhost) açılmadı."), { name: "Unsupported" });
+          }
+          const video = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
+          if (settings.cameraId) video.deviceId = { exact: settings.cameraId };
+          try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video }); }
+          catch (e) {
+            if (settings.cameraId && (e.name === "OverconstrainedError" || e.name === "NotFoundError")) {
+              settings.cameraId = ""; saveSettings(); delete video.deviceId;
+              stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+            } else throw e;
+          }
         }
-        if (gen !== camGen) { stream.getTracks().forEach((t) => t.stop()); return; }
+        if (gen !== camGen) { stream.getTracks().forEach((t) => t.stop()); if (stream.ipStop) stream.ipStop(); return; }
         cam.stream = stream;
         cam.video.src = ""; cam.video.srcObject = stream;
         await cam.video.play().catch(() => {});
         if (cam.video.readyState < 1) await onceEvent(cam.video, "loadedmetadata");
         const track = stream.getVideoTracks()[0];
-        cam.label = (track && track.label) || "Kamera";
+        cam.label = stream.ipStop ? "IP kamera" : settings.cameraId === WINDOW ? "Pencere yakalama" : (track && track.label) || "Kamera";
+        // pencere kapanir ya da paylasim durdurulursa goruntu donup kalmasin, haber verilsin
+        if (track) track.addEventListener("ended", () => {
+          if (gen !== camGen) return;
+          cam.ok = false; camMessage("Görüntü kesildi", "Ayarlar > Kamera'dan tekrar seç.");
+          $("#camChip").textContent = "Görüntü kesildi"; $("#camChip").className = "chip bad";
+        });
         const st = track && track.getSettings ? track.getSettings() : {};
         if (st.deviceId && !settings.cameraId) { /* varsayilan kamera; secim kaydedilmez */ }
       }
@@ -400,8 +458,11 @@
     try {
       const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
       const cur = cam.stream && cam.stream.getVideoTracks()[0] && cam.stream.getVideoTracks()[0].getSettings().deviceId;
-      sel.innerHTML = devs.map((d, i) => `<option value="${escapeHtml(d.deviceId)}"${d.deviceId === cur ? " selected" : ""}>${escapeHtml(d.label || "Kamera " + (i + 1))}</option>`).join("");
+      sel.innerHTML = devs.map((d, i) => `<option value="${escapeHtml(d.deviceId)}"${d.deviceId === cur ? " selected" : ""}>${escapeHtml(d.label || "Kamera " + (i + 1))}</option>`).join("")
+        + `<option value="${IPCAM}"${settings.cameraId === IPCAM ? " selected" : ""}>IP kamera (RTSP)</option>`
+        + `<option value="${WINDOW}"${settings.cameraId === WINDOW ? " selected" : ""}>Pencere yakalama (IPCBatchTool)</option>`;
     } catch (e) { /* yok */ }
+    $("#setIpcam").hidden = sel.value !== IPCAM;
   }
 
   // ------------------------------------------------------------ eklem cizimi
@@ -1236,6 +1297,7 @@
   const dlgS = $("#dlgSettings");
   function openSettings(tab = "tabGame") {
     $("#setDifficulty").value = settings.difficulty;
+    $("#setIpcam").value = settings.ipcamUrl;
     $("#setMirror").value = settings.mirror;
     $("#setLatency").value = settings.latency; $("#latencyVal").textContent = (+settings.latency).toFixed(2);
     $("#setModel").value = String(settings.model);
@@ -1250,7 +1312,8 @@
     document.querySelectorAll(".tab-panel").forEach((p) => { p.hidden = p.id !== id; });
   }
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => selectTab(t.dataset.tab)));
-  $("#setCamera").addEventListener("change", (e) => { settings.cameraId = e.target.value; saveSettings(); startCamera(); });
+  $("#setCamera").addEventListener("change", (e) => { settings.cameraId = e.target.value; saveSettings(); $("#setIpcam").hidden = settings.cameraId !== IPCAM; startCamera(); });
+  $("#setIpcam").addEventListener("change", (e) => { settings.ipcamUrl = e.target.value.trim(); saveSettings(); if (settings.cameraId === IPCAM) startCamera(); });
   $("#setDifficulty").addEventListener("change", (e) => { settings.difficulty = e.target.value; saveSettings(); });
   $("#setMirror").addEventListener("change", (e) => { settings.mirror = e.target.value; saveSettings(); });
   $("#setLatency").addEventListener("input", (e) => { settings.latency = +e.target.value; $("#latencyVal").textContent = settings.latency.toFixed(2); saveSettings(); });

@@ -2,9 +2,12 @@
 import functools
 import http.server
 import os
+import shutil
 import socketserver
+import subprocess
 import sys
 import threading
+import urllib.parse
 import webbrowser
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +23,49 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ".tflite": "application/octet-stream", ".data": "application/octet-stream",
         ".binarypb": "application/octet-stream",
     }
+
+    def do_GET(self):
+        if self.path.startswith("/ipcam?"):
+            return self.ipcam()
+        super().do_GET()
+
+    # IP kamera: RTSP'yi FFmpeg ile ardisik JPEG'e cevirip akitir (tarayici RTSP acamaz)
+    def ipcam(self):
+        url = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("url", [""])[0]
+        ffmpeg = shutil.which("ffmpeg")
+        err = None
+        if not url.lower().startswith(("rtsp://", "rtsps://")):
+            err = "Adres rtsp:// ile başlamalı."
+        elif not ffmpeg:
+            err = "FFmpeg bulunamadı. IP kamera için FFmpeg kurulu olmalı."
+        if err:
+            body = err.encode()
+            self.send_response(400)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        p = subprocess.Popen([ffmpeg, "-loglevel", "error", "-rtsp_transport", "tcp", "-timeout", "5000000",
+                              "-fflags", "nobuffer", "-flags", "low_delay", "-i", url,
+                              # -threads 1: cok cekirdekte kodlayici her cekirdek icin bir kare bekletir (~0.6 sn gecikme)
+                              "-an", "-c:v", "mjpeg", "-q:v", "5", "-threads", "1", "-flush_packets", "1",
+                              "-f", "mjpeg", "pipe:1"],
+                             stdout=subprocess.PIPE, stdin=subprocess.DEVNULL)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.end_headers()
+            while True:
+                chunk = p.stdout.read1(65536)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass
+        finally:
+            p.kill()
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache")
