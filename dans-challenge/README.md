@@ -84,12 +84,13 @@ Dansçının hareket etmeye başladığı ve bitirdiği an bulunup müziğin vur
 ## Güvenlik kamerası bağlamak
 
 - **USB kamera:** Tak, Ayarlar > Kamera listesinde görünür.
-- **IP kamera (RTSP):** Tarayıcılar RTSP'yi doğrudan açamaz. OBS Studio ile sanal kameraya çevir:
-  1. OBS'i kur: https://obsproject.com
-  2. Kaynaklar > **+** > **Medya Kaynağı** > "Yerel dosya" işaretini kaldır > Giriş kısmına kameranın RTSP adresini yaz.
-  3. Sağ alttan **Sanal Kamerayı Başlat**.
-  4. Uygulamada Ayarlar > Kamera > **OBS Virtual Camera** seç.
-  5. Görüntü geç geliyorsa **Kamera gecikmesi**ni artır (genelde 0.5-1.0 sn).
+- **IP kamera (RTSP):** Uygulamayı `baslat.bat` ile aç (internet linkinde çalışmaz). Bilgisayarda FFmpeg kurulu olmalı (`winget install Gyan.FFmpeg`).
+  1. Ayarlar > Kamera > **IP kamera (RTSP)** seç.
+  2. Altındaki kutuya kameranın RTSP adresini yaz, örneğin `rtsp://192.168.1.106:554/stream1`.
+  3. **Kamera gecikmesi**ni ayarla (bu kamera için 0.35 civarı).
+
+  Bağlantı koparsa uygulama kendisi yeniden bağlanır. Kameranın kendi programı (IPCBatchTool vb.) açıkken kamera bağlantıyı koparabilir, o programı kapat.
+- **Kameranın kendi programından (IPCBatchTool):** Programda canlı görüntüyü aç, sonra Ayarlar > Kamera > **Pencere yakalama (IPCBatchTool)** seç ve açılan listeden görüntü penceresini seç. Pencere açık kalmalı (arkada kalabilir, simge durumuna küçültülmemeli). Sayfa her açıldığında pencere tekrar sorulur.
 
 ## Sorun giderme
 
