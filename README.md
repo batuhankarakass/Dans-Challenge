@@ -4,13 +4,24 @@ Kulüp standı için dans taklit oyunu. Ekranda referans dans oynar, oyuncu kame
 
 Tarayıcıda çalışır (Chrome veya Edge önerilir). Kurulum gerekmez, internetsiz de çalışır.
 
+## Klasörler
+
+| Ne | Ne işe yarar |
+|---|---|
+| `Dans Challenge.pyw` | Oyunu açar. Çift tıkla. |
+| `oyun/` | Oyunun kendisi: sayfa, kod, şarkılar (`oyun/sarkilar`), yazı tipleri, hareket algılama modeli. |
+| `araclar/` | Yeni şarkı hazırlama scriptleri. Sadece şarkı eklerken gerekir. |
+
 ## Laptopta açmak
 
-`baslat.bat` dosyasına çift tıkla. Tarayıcı `http://localhost:8000` adresinde açılır. Siyah pencere açık kaldığı sürece uygulama çalışır.
+`Dans Challenge.pyw` dosyasına çift tıkla. Oyun adres çubuğu olmayan tam ekran bir pencerede açılır (Edge, yoksa Chrome). Pencereyi kapatınca oyun da kapanır. Bilgisayarda Python kurulu olmalı.
+
+Elle başlatmak istersen `oyun` klasöründe `py serve.py` yaz, sonra tarayıcıda `http://localhost:8000` aç.
 
 - Tarayıcı kamera izni isterse **İzin ver**'e bas.
 - **F** tuşu tam ekran yapar.
-- `index.html` dosyasına doğrudan çift tıklarsan çalışmaz, mutlaka `baslat.bat` ya da internet linki ile aç.
+- `index.html` dosyasına doğrudan çift tıklarsan çalışmaz, mutlaka `Dans Challenge.pyw` ya da internet linki ile aç.
+- Tam ekrandan çıkmak için **F11**, oyunu kapatmak için **Alt+F4**.
 
 ## Kısayollar
 
@@ -18,6 +29,7 @@ Tarayıcıda çalışır (Chrome veya Edge önerilir). Kurulum gerekmez, interne
 |---|---|
 | Space / Enter | Başla, tekrar oyna |
 | ↑ ↓ | Ana ekranda şarkı değiştir |
+| ← → | Ana ekranda tür değiştir (birden fazla tür varsa) |
 | Esc | Ana ekrana dön |
 | F | Tam ekran |
 | S | Ayarlar |
@@ -30,7 +42,7 @@ Bir kere yapılır, sonra herkes linke tıklayıp oynar. Linkte kamera da çalı
 1. https://github.com adresinde oturum aç, sağ üstte **+** > **New repository**.
 2. İsim olarak `dans-challenge` yaz, **Public** seçili olsun, **Create repository**.
 3. Açılan sayfada **uploading an existing file** bağlantısına tıkla.
-4. Bu klasörün **içindeki her şeyi** (klasörler dahil: `lib`, `fonts`, `sarkilar`) sürükleyip bırak. Yükleme bitince **Commit changes**.
+4. `oyun` klasörünün **içindeki her şeyi** (klasörler dahil: `lib`, `fonts`, `sarkilar`) sürükleyip bırak. Yükleme bitince **Commit changes**.
 5. Repo sayfasında **Settings** > soldan **Pages**. "Branch" kısmında `main` ve `/ (root)` seç, **Save**.
 6. 1-2 dakika sonra aynı sayfanın üstünde link çıkar: `https://KULLANICI-ADIN.github.io/dans-challenge/`
 
@@ -38,37 +50,40 @@ Sonradan bir şeyi değiştirirsen aynı dosyayı tekrar yüklemen yeterli, link
 
 Not: Repo herkese açık olduğu için içindeki dans videosu da herkese açık olur. Başkasına ait bir video ise telif şikâyeti gelebilir.
 
-Skor tablosu her cihazın kendi tarayıcısında tutulur. Stanttaki laptopun tablosu sadece o laptopta görünür.
+Skor tablosu her cihazın kendi tarayıcısında tutulur. Stanttaki laptopun tablosu sadece o laptopta görünür. Tablo tüm şarkılar için tektir ve yüzdeye göre sıralanır.
 
 ## Şarkı eklemek ve değiştirmek
 
 **Kolay yol (sadece o bilgisayarda):** Ana ekranda **Şarkıları yönet** > **+ Video ekle**. Videoyu seç, başlangıç ve bitişi işaretle, **Kaydet**. Video bir kez analiz edilir (laptopta 20-30 saniye) ve o tarayıcıda saklanır.
 
-**Herkes için kalıcı yol:** Videoyu `sarkilar` klasörüne koy ve `sarkilar/sarkilar.json` dosyasına bir satır ekle:
+**Herkes için kalıcı yol:** Videoyu `oyun/sarkilar` klasörüne koy ve `oyun/sarkilar/sarkilar.json` dosyasına bir satır ekle:
 
 ```json
 {
   "songs": [
-    { "id": "manifest", "title": "Manifest", "file": "sarkilar/manifest.mp4", "pose": "sarkilar/manifest.pose.json", "start": 0, "end": 20.9 },
-    { "id": "yeni", "title": "Yeni Şarkı", "file": "sarkilar/yeni.mp4", "start": 12, "end": 52 }
+    { "id": "manifest", "title": "Manifest", "tur": "Pop", "file": "sarkilar/manifest.mp4", "pose": "sarkilar/manifest.pose.json", "start": 0, "end": 20.9 },
+    { "id": "yeni", "title": "Yeni Şarkı", "tur": "Oyun Havası", "file": "sarkilar/yeni.mp4", "start": 12, "end": 52 }
   ]
 }
 ```
 
 - `id`: boşluksuz, benzersiz bir ad.
+- `tur`: ana ekrandaki sekme (Pop, Oyun Havası, Roman Havası…). Aynı yazılan türler aynı sekmede toplanır. Birden fazla tür olunca sekmeler kendiliğinden çıkar.
 - `start`, `end`: dansın kaçıncı saniyeden başlayıp nerede bittiği. Stant için 30-45 saniye ideal.
 - `pose` yazmazsan uygulama videoyu ilk oynatılışta kendisi analiz eder.
-- Hazır analizi önceden üretmek için üst klasörde: `venv\Scripts\python poz_cikar.py dans-challenge\sarkilar\yeni.mp4` (videonun yanına `yeni.pose.json` yazar).
+- Hazır analizi önceden üretmek için ana klasörde: `venv\Scripts\python araclar\poz_cikar.py oyun\sarkilar\yeni.mp4` (videonun yanına `yeni.pose.json` yazar).
 
-**Tek komutla şarkı eklemek:** Üst klasörde
+**Tek komutla şarkı eklemek:** Ana klasörde
 
 ```
-venv\Scripts\python sarki_hazirla.py yeni "Yeni Şarkı" tekli-dans.mp4
+venv\Scripts\python araclar\sarki_hazirla.py yeni "Yeni Şarkı" tekli-dans.mp4 --tur "Oyun Havası"
 ```
 
-Dansçının hareket etmeye başladığı ve bitirdiği an bulunup müziğin vuruşuna oturtulur, video o bölümden kesilir (başta 1 sn giriş payı), poz verisi çıkarılır ve `sarkilar.json` güncellenir. Kesimi elle vermek için `--bas SANİYE --son SANİYE`. Gerekli paketler: `venv\Scripts\pip install -r requirements.txt` ve FFmpeg.
+`--tur` yazmazsan şarkı "Pop" sekmesine girer.
 
-**Puanlamayı değiştirdikten sonra:** `node dans-challenge/engine.test.js` her şarkıda kendi dansın yüksek, başka dansın düşük puan aldığını kontrol eder.
+Dansçının hareket etmeye başladığı ve bitirdiği an bulunup müziğin vuruşuna oturtulur, video o bölümden kesilir (başta 1 sn giriş payı), poz verisi çıkarılır ve `sarkilar.json` güncellenir. Kesimi elle vermek için `--bas SANİYE --son SANİYE`. Gerekli paketler: `venv\Scripts\python -m pip install -r araclar\requirements.txt` ve FFmpeg.
+
+**Puanlamayı değiştirdikten sonra:** `node oyun/engine.test.js` her şarkıda kendi dansın yüksek, başka dansın düşük puan aldığını kontrol eder.
 
 **İyi bir referans video:** Tek kişi, önden çekilmiş, baştan sona tüm vücut görünüyor, sabit kamera.
 
@@ -79,12 +94,18 @@ Dansçının hareket etmeye başladığı ve bitirdiği an bulunup müziğin vur
 - **Taklit şekli:** Otomatik bırak. Oyuncu ayna gibi mi birebir mi oynuyor, uygulama kendisi anlar.
 - **Kamera gecikmesi:** Laptop kamerasında 0.1. Görüntü geç geliyorsa artır.
 - **Performans:** Kasarsa "Hızlı"yı seç.
-- **Görünüm:** Başlık ve kulüp adı. Logo için bu klasöre `logo.png` koyman yeterli.
+- **Görünüm:** Başlık ve kulüp adı. Logo için `oyun` klasörüne `logo.png` koyman yeterli.
+
+## Arka plan müziği
+
+Ana ekranda müziği kendin aç (Spotify, YouTube, herhangi bir müzik uygulaması). Biri **Başla**'ya basınca oyun çalan müziği durdurur. Oyun bitip sonuç ekranı gelince ya da ana ekrana dönülünce müzik kaldığı yerden devam eder. Sadece oyunun durdurduğu müzik devam ettirilir: sen kendin durdurduysan oyun onu açmaz.
+
+Bu özellik oyun `Dans Challenge.pyw` (ya da `oyun` klasöründe `py serve.py`) ile açıldığında çalışır, internet linkinde çalışmaz. Windows'un medya kontrolünü kullanır: klavyedeki medya tuşlarıyla durdurulabilen her uygulama olur.
 
 ## Güvenlik kamerası bağlamak
 
 - **USB kamera:** Tak, Ayarlar > Kamera listesinde görünür.
-- **IP kamera (RTSP):** Uygulamayı `baslat.bat` ile aç (internet linkinde çalışmaz). Bilgisayarda FFmpeg kurulu olmalı (`winget install Gyan.FFmpeg`).
+- **IP kamera (RTSP):** Uygulamayı `Dans Challenge.pyw` ile aç (internet linkinde çalışmaz). Bilgisayarda FFmpeg kurulu olmalı (`winget install Gyan.FFmpeg`).
   1. Ayarlar > Kamera > **IP kamera (RTSP)** seç.
   2. Altındaki kutuya kameranın RTSP adresini yaz, örneğin `rtsp://192.168.1.106:554/stream1`.
   3. **Kamera gecikmesi**ni ayarla (bu kamera için 0.35 civarı).

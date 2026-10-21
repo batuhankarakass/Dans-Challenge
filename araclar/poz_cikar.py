@@ -1,7 +1,7 @@
 """Dans Challenge icin hazir poz verisi (.pose.json) uretir.
 
 Kullanim:
-    python poz_cikar.py dans-challenge/sarkilar/tralala.mp4 [baska.mp4 ...]
+    python araclar/poz_cikar.py oyun/sarkilar/tralala.mp4 [baska.mp4 ...]
 
 Her videonun yanina ayni isimle .pose.json yazar. Bicim, uygulamanin kendi
 analiziyle ayni (v2): 15 fps, 12 eklem noktasi [x, y, gorunurluk], ts = kare zamani.

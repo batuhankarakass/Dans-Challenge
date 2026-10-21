@@ -1,4 +1,5 @@
-"""Dans Challenge yerel sunucusu. baslat.bat bunu calistirir; ek paket gerekmez."""
+"""Dans Challenge yerel sunucusu. "Dans Challenge.pyw" bunu calistirir; ek paket gerekmez."""
+import base64
 import functools
 import http.server
 import os
@@ -11,6 +12,45 @@ import urllib.parse
 import webbrowser
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+
+# Arka plan muzigi: Windows medya kontrolu (medya tuslarinin arkasindaki sistem) ile
+# calan uygulamalari (Spotify, YouTube...) durdurur, sonra sadece durdurduklarini devam ettirir.
+MEDIA_PS = r"""
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
+function Await($op, $type) { $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op)); $t.Wait(-1) | Out-Null; $t.Result }
+[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime] | Out-Null
+$mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
+$ids = @($env:DC_IDS -split '\|' | Where-Object { $_ })
+foreach ($s in $mgr.GetSessions()) {
+  $playing = $s.GetPlaybackInfo().PlaybackStatus -eq 'Playing'
+  if ($env:DC_MODE -eq 'pause' -and $playing) { if (Await ($s.TryPauseAsync()) ([bool])) { $s.SourceAppUserModelId } }
+  elseif ($env:DC_MODE -eq 'resume' -and -not $playing -and $ids -contains $s.SourceAppUserModelId) { Await ($s.TryPlayAsync()) ([bool]) | Out-Null }
+}
+"""
+MEDIA_PS_B64 = base64.b64encode(MEDIA_PS.encode("utf-16-le")).decode()
+media_lock = threading.Lock()
+media_paused = []   # bizim durdurdugumuz uygulamalar
+
+
+def media(mode):
+    global media_paused
+    if os.name != "nt":
+        return
+    with media_lock:
+        if mode == "resume" and not media_paused:
+            return
+        env = dict(os.environ, DC_MODE=mode, DC_IDS="|".join(media_paused))
+        try:
+            r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", MEDIA_PS_B64],
+                               capture_output=True, text=True, env=env, timeout=15,
+                               stdin=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
+        except (OSError, subprocess.TimeoutExpired):
+            return
+        if mode == "pause":
+            media_paused = sorted(set(media_paused) | {l.strip() for l in r.stdout.splitlines() if l.strip()})
+        else:
+            media_paused = []
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -28,6 +68,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith("/ipcam?"):
             return self.ipcam()
         super().do_GET()
+
+    def do_POST(self):
+        if self.path in ("/media/pause", "/media/resume"):
+            media(self.path.rsplit("/", 1)[1])
+            self.send_response(204)
+            self.end_headers()
+            return
+        self.send_error(404)
 
     # IP kamera: RTSP'yi FFmpeg ile ardisik JPEG'e cevirip akitir (tarayici RTSP acamaz)
     def ipcam(self):
@@ -132,23 +180,56 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     allow_reuse_address = True
 
 
-def main():
+# Sabit port: skor tablosu adrese bagli tutulur, adres degisirse tablo bos gorunur
+PORT = 8000
+URL = f"http://localhost:{PORT}/"
+
+
+def find_browser():
+    for env, rel in (("ProgramFiles(x86)", r"Microsoft\Edge\Application\msedge.exe"),
+                     ("ProgramFiles", r"Microsoft\Edge\Application\msedge.exe"),
+                     ("ProgramFiles", r"Google\Chrome\Application\chrome.exe"),
+                     ("ProgramFiles(x86)", r"Google\Chrome\Application\chrome.exe"),
+                     ("LOCALAPPDATA", r"Google\Chrome\Application\chrome.exe")):
+        p = os.path.join(os.environ.get(env, ""), rel)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def open_app_window():
+    """Adres cubugu olmayan tam ekran pencere acar; pencere kapanana kadar bekler.
+    Ayri profil sayesinde surec pencereyle birlikte kapanir, kamera izni o profilde kalir.
+    Tarayici bulunamazsa False doner."""
+    exe = find_browser()
+    if not exe:
+        return False
+    profile = os.path.join(os.environ.get("LOCALAPPDATA", ROOT), "DansChallenge")
+    subprocess.run([exe, f"--app={URL}", "--start-fullscreen", f"--user-data-dir={profile}",
+                    "--autoplay-policy=no-user-gesture-required", "--no-first-run", "--no-default-browser-check"])
+    return True
+
+
+def main(app=False):
     handler = functools.partial(Handler, directory=ROOT)
-    for port in range(8000, 8011):
-        try:
-            httpd = Server(("127.0.0.1", port), handler)
-            break
-        except OSError:
-            continue
-    else:
-        print("8000-8010 arasinda bos port bulunamadi.")
-        input("Kapatmak icin Enter'a bas...")
-        sys.exit(1)
-    url = f"http://localhost:{port}/"
-    print(f"Dans Challenge calisiyor: {url}")
+    try:
+        httpd = Server(("127.0.0.1", PORT), handler)
+    except OSError:
+        # port dolu: oyun buyuk ihtimalle zaten acik, sadece pencereyi ac
+        if not (app and open_app_window()):
+            webbrowser.open(URL)
+        return
+    if app:
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        if not open_app_window():
+            webbrowser.open(URL)
+            threading.Event().wait()  # tarayici bulunamadi: sunucu acik kalsin
+        httpd.shutdown()
+        return
+    print(f"Dans Challenge calisiyor: {URL}")
     print("Bu pencere acik kaldigi surece uygulama calisir. Kapatmak icin pencereyi kapat.")
     if "--no-browser" not in sys.argv:
-        threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.8, lambda: webbrowser.open(URL)).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

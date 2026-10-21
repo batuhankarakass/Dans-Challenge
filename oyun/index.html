@@ -49,6 +49,7 @@
           <h2>Şarkı seç</h2>
           <button class="link-btn" id="btnManageSongs">Şarkıları yönet</button>
         </div>
+        <div class="tur-tabs" id="turTabs" role="tablist" aria-label="Türler"></div>
         <div class="songs" id="songList" role="listbox" aria-label="Şarkılar"></div>
 
         <ol class="steps" aria-label="Nasıl oynanır">
@@ -72,7 +73,7 @@
           </div>
         </div>
         <div class="board">
-          <h2>En iyiler <span class="board-song" id="boardSong"></span></h2>
+          <h2>En iyiler <span class="board-song">· tüm şarkılar</span></h2>
           <ol class="board-list" id="boardList"></ol>
         </div>
       </div>
@@ -160,8 +161,7 @@
     </div>
     <div class="tabs" role="tablist">
       <button type="button" class="tab" data-tab="tabGame" aria-selected="true">Oyun</button>
-      <button type="button" class="tab" data-tab="tabSongs" aria-selected="false">Şarkılar</button>
-      <button type="button" class="tab" data-tab="tabLook" aria-selected="false">Görünüm</button>
+      <button type="button" class="tab" data-tab="tabSongs" aria-selected="false">Şarkılar</button>      <button type="button" class="tab" data-tab="tabLook" aria-selected="false">Görünüm</button>
     </div>
 
     <div class="tab-panel" id="tabGame">
@@ -197,7 +197,7 @@
       <label class="check"><input type="checkbox" id="setFps"> Kare hızını göster</label>
       <div class="field">
         <span>Skor tablosu</span>
-        <button type="button" class="danger-btn" id="btnResetBoard">Bu şarkının tablosunu sıfırla</button>
+        <button type="button" class="danger-btn" id="btnResetBoard">Skor tablosunu sıfırla</button>
       </div>
     </div>
 
@@ -221,7 +221,7 @@
           <option value="60">60 sn sonra</option>
         </select>
       </label>
-      <p class="hint">Logo için <code>logo.png</code> dosyasını uygulama klasörüne koyman yeterli.</p>
+      <p class="hint">Logo için <code>logo.png</code> dosyasını <code>oyun</code> klasörüne koyman yeterli.</p>
     </div>
   </form>
 </dialog>

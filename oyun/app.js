@@ -20,7 +20,7 @@
   // ------------------------------------------------------------ ayarlar
   const DEFAULTS = {
     cameraId: "", ipcamUrl: "rtsp://192.168.1.106:554/stream1", difficulty: "normal", mirror: "auto", latency: 0.1, model: 1, fps: false,
-    title: "Dans Challenge", club: "Google Developer Groups on Campus", autoReturn: 30, songId: "",
+    title: "Dans Challenge", club: "Google Developer Groups on Campus", autoReturn: 30, songId: "", tur: "",
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -103,6 +103,19 @@
     fanfare() { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.45, "triangle", 0.08, i * 0.09)); },
   };
 
+  // ------------------------------------------------------------ arka plan muzigi
+  // Standda muzigi kullanici kendisi acar (Spotify, YouTube...). serve.py Windows medya kontroluyle
+  // oyun sirasinda durdurur, bitince devam ettirir. Istekler sirayla gider; internet linkinde sessizce bir sey yapmaz.
+  const bgMusic = {
+    held: false, q: Promise.resolve(),
+    want(on) {
+      if (TEST.sim || on !== this.held) return;
+      this.held = !on;
+      const path = on ? "/media/resume" : "/media/pause";
+      this.q = this.q.then(() => fetch(path, { method: "POST" })).catch(() => {});
+    },
+  };
+
   // ------------------------------------------------------------ ekranlar
   let screen = "loading";
   let bootReady = Promise.resolve();   // kamera + model hazir olunca biter (boot'ta atanir)
@@ -117,6 +130,7 @@
     document.body.classList.toggle("playing", name === "play");
     if (name === "home" || name === "name") mountCam($("#homeCamStage"));
     if (name === "play") mountCam($("#playCamStage"));
+    bgMusic.want(name !== "name" && name !== "play");   // Basla'ya basinca durur, oyun bitince devam eder
   }
   function loading(text, hint = "") { $("#loadingText").textContent = text; $("#loadingHint").textContent = hint; }
 
@@ -156,16 +170,30 @@
   }
   const currentSong = () => songs.find((s) => s.id === settings.songId) || songs[0] || null;
 
-  // ------------------------------------------------------------ skor tablosu
-  const boardKey = (id) => "dc.board." + id;
-  const getBoard = (id) => store.get(boardKey(id), []);
-  function addToBoard(id, entry) {
-    const b = getBoard(id);
+  // ------------------------------------------------------------ skor tablosu (tum sarkilar tek tablo, yuzdeye gore)
+  const BOARD_KEY = "dc.board", BOARD_MAX = 50;
+  const byAcc = (x, y) => y.acc - x.acc || y.points - x.points;
+  const getBoard = () => store.get(BOARD_KEY, []);
+  // eski surumde her sarkinin ayri tablosu vardi (dc.board.<id>); bir kez tek tabloya tasinir
+  function migrateBoards() {
+    let b = getBoard(), moved = false;
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (!k.startsWith(BOARD_KEY + ".")) continue;
+        const song = k.slice(BOARD_KEY.length + 1);
+        for (const e of store.get(k, [])) b.push(Object.assign({ song }, e));
+        localStorage.removeItem(k); moved = true;
+      }
+    } catch (e) { return; }
+    if (moved) store.set(BOARD_KEY, b.sort(byAcc).slice(0, BOARD_MAX));
+  }
+  function addToBoard(entry) {
+    const b = getBoard();
     entry.key = Date.now() + Math.random();
     b.push(entry);
-    b.sort((x, y) => y.points - x.points || y.acc - x.acc);
-    const top = b.slice(0, 10);
-    store.set(boardKey(id), top);
+    b.sort(byAcc);
+    const top = b.slice(0, BOARD_MAX);
+    store.set(BOARD_KEY, top);
     const i = top.findIndex((e) => e.key === entry.key);
     return { rank: i >= 0 ? i + 1 : null, key: entry.key, size: top.length };
   }
@@ -236,7 +264,7 @@
           try {
             ctrl = new AbortController();
             const r = await fetch("/ipcam?url=" + encodeURIComponent(url), { signal: ctrl.signal, cache: "no-store" });
-            if (!r.ok) return fail(r.status === 404 ? "Uygulamayı baslat.bat ile aç (IP kamera internet linkinde çalışmaz)." : await r.text());
+            if (!r.ok) return fail(r.status === 404 ? "Uygulamayı \"Dans Challenge.pyw\" ile aç (IP kamera internet linkinde çalışmaz)." : await r.text());
             const rd = r.body.getReader();
             let buf = new Uint8Array(0);
             for (;;) {
@@ -837,8 +865,8 @@
       for (const ev of sum.events) if (ev.type === "judge") this.onEvent(ev);
       this.summary = sum;
       if (!photo.has) capturePhoto(live.pts, live.segDiff);
-      const entry = { name: this.name, points: sum.points, acc: sum.accuracy, stars: sum.stars, date: Date.now() };
-      const placed = addToBoard(this.song.id, entry);
+      const entry = { name: this.name, points: sum.points, acc: sum.accuracy, stars: sum.stars, date: Date.now(), song: this.song.id, songTitle: this.song.title };
+      const placed = addToBoard(entry);
       this.lastPlaced = placed;
       await sleep(700);
       if (this.state !== "done") return;   // bu arada Esc ile cikildiysa
@@ -860,7 +888,7 @@
     $("#resTitle").textContent = TITLES[sum.stars];
     $("#resPoints").textContent = sum.points.toLocaleString("tr-TR");
     $("#resCombo").textContent = sum.maxCombo;
-    $("#resRank").textContent = placed.rank ? `${placed.rank}.` : "İlk 10 dışı";
+    $("#resRank").textContent = placed.rank ? `${placed.rank}.` : `İlk ${BOARD_MAX} dışı`;
     const st = $("#resStars"); st.setAttribute("aria-label", `${sum.stars} yıldız`);
     st.innerHTML = [1, 2, 3, 4, 5].map((i) => `<svg viewBox="0 0 24 24" class="${i <= sum.stars ? "on" : "off"}" style="animation-delay:${0.5 + i * 0.12}s"><path d="M12 2.6l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5l-5.9 3.1 1.2-6.5L2.5 9.5l6.6-.9z"/></svg>`).join("");
     const cnt = sum.counts;
@@ -884,28 +912,58 @@
   }
 
   // ------------------------------------------------------------ ana ekran
+  const turOf = (s) => s.tur || "Diğer";
+  const turList = () => [...new Set(songs.map(turOf))];
+  // secili turdeki sarkilar ("" = hepsi)
+  const visibleSongs = () => songs.filter((s) => !settings.tur || turOf(s) === settings.tur);
+
   function renderHome() {
+    const turs = turList();
+    if (settings.tur && !turs.includes(settings.tur)) settings.tur = "";
+    const tabs = $("#turTabs");
+    tabs.hidden = turs.length < 2;
+    tabs.innerHTML = "";
+    for (const t of [""].concat(turs)) {
+      const b = document.createElement("button");
+      b.className = "tur-tab"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(t === settings.tur));
+      b.textContent = t || "Hepsi";
+      b.addEventListener("click", () => selectTur(t));
+      tabs.append(b);
+    }
+
     const list = $("#songList");
     list.innerHTML = "";
     if (!songs.length) {
       list.innerHTML = `<p class="hint">Henüz şarkı yok. "Şarkıları yönet" ile bir dans videosu ekle.</p>`;
     }
-    for (const s of songs) {
-      const best = getBoard(s.id)[0];
+    const board = getBoard();
+    let selEl = null;
+    for (const s of visibleSongs()) {
+      const best = board.find((e) => e.song === s.id);
       const b = document.createElement("button");
       b.className = "song"; b.setAttribute("role", "option"); b.setAttribute("aria-selected", String(s.id === settings.songId));
-      b.innerHTML = `<span class="disc" aria-hidden="true"></span><span><span class="name">${escapeHtml(s.title)}</span><br><span class="meta">${Math.round(s.end - s.start)} sn${best ? " · rekor: " + escapeHtml(best.name) : ""}</span></span><span class="best">${best ? best.points.toLocaleString("tr-TR") : ""}</span>`;
+      b.innerHTML = `<span class="disc" aria-hidden="true"></span><span><span class="name">${escapeHtml(s.title)}</span><span class="meta">${Math.round(s.end - s.start)} sn${best ? ` · <span class="best">%${best.acc}</span> ${escapeHtml(best.name)}` : ""}</span></span>`;
       b.addEventListener("click", () => { settings.songId = s.id; saveSettings(); renderHome(); });
       list.append(b);
+      if (s.id === settings.songId) selEl = b;
     }
+    if (selEl) selEl.scrollIntoView({ block: "nearest" });
+
     const song = currentSong();
-    $("#boardSong").textContent = song ? "· " + song.title : "";
-    const board = song ? getBoard(song.id) : [];
+    const titleOf = (e) => (songs.find((s) => s.id === e.song) || {}).title || e.songTitle || "";
     const fresh = game.lastPlaced && game.lastPlaced.key;
     $("#boardList").innerHTML = board.length
-      ? board.slice(0, 5).map((e, i) => `<li class="${e.key === fresh ? "fresh" : ""}"><span class="rk">${i + 1}</span><span class="nm">${escapeHtml(e.name)}</span><span class="st">${"★".repeat(e.stars)}</span><span class="pt">${e.points.toLocaleString("tr-TR")}</span></li>`).join("")
+      ? board.slice(0, 8).map((e, i) => `<li class="${fresh && e.key === fresh ? "fresh" : ""}"><span class="rk">${i + 1}</span><span class="nm">${escapeHtml(e.name)}<small>${escapeHtml(titleOf(e))}</small></span><span class="st">${"★".repeat(e.stars)}</span><span class="pt">%${e.acc}</span></li>`).join("")
       : `<li class="empty">Henüz skor yok. İlk sen ol!</li>`;
     $("#btnStart").disabled = !song;
+  }
+
+  // tur degisince secili sarki o turde degilse ilk sarkiya gecilir
+  function selectTur(t) {
+    settings.tur = t;
+    const vis = visibleSongs();
+    if (vis.length && !vis.some((s) => s.id === settings.songId)) settings.songId = vis[0].id;
+    saveSettings(); renderHome();
   }
 
   function openName() {
@@ -947,8 +1005,7 @@
   $("#setClub").addEventListener("input", (e) => { settings.club = e.target.value; saveSettings(); applyTexts(); });
   $("#setAutoReturn").addEventListener("change", (e) => { settings.autoReturn = +e.target.value; saveSettings(); });
   armButton($("#btnResetBoard"), "Emin misin? Tekrar bas", () => {
-    const s = currentSong(); if (!s) return;
-    store.set(boardKey(s.id), []); renderHome(); toast(`"${s.title}" skor tablosu sıfırlandı.`);
+    store.set(BOARD_KEY, []); renderHome(); toast("Skor tablosu sıfırlandı.");
   });
   /** iki asamali onay: ilk tik "emin misin", 4 sn icinde ikinci tik islemi yapar */
   function armButton(btn, armedText, action) {
@@ -1070,9 +1127,16 @@
       else if (k === "s") openSettings();
       else if (k === "arrowdown" || k === "arrowup") {
         e.preventDefault();
-        const i = songs.findIndex((s) => s.id === settings.songId);
-        const n = songs[(i + (k === "arrowdown" ? 1 : -1) + songs.length) % songs.length];
+        const vis = visibleSongs();
+        const i = vis.findIndex((s) => s.id === settings.songId);
+        const n = vis[(i + (k === "arrowdown" ? 1 : -1) + vis.length) % vis.length];
         if (n) { settings.songId = n.id; saveSettings(); renderHome(); }
+      } else if (k === "arrowleft" || k === "arrowright") {
+        e.preventDefault();
+        const turs = [""].concat(turList());
+        if (turs.length < 3) return;
+        const i = turs.indexOf(settings.tur);
+        selectTur(turs[(i + (k === "arrowright" ? 1 : -1) + turs.length) % turs.length]);
       }
     } else if (screen === "name") {
       if (k === "escape") show("home");
@@ -1097,11 +1161,12 @@
   async function boot() {
     applyTexts();
     if (location.protocol === "file:") {
-      loading("Bu sayfa doğrudan dosyadan açılmış", "Uygulamayı klasördeki baslat.bat ile ya da paylaşılan internet linkinden aç. Kamera ve model dosyadan açılınca çalışmaz.");
+      loading("Bu sayfa doğrudan dosyadan açılmış", "Uygulamayı ana klasördeki \"Dans Challenge.pyw\" ile ya da paylaşılan internet linkinden aç. Kamera ve model dosyadan açılınca çalışmaz.");
       document.querySelector(".loader-dots").hidden = true;
       return;
     }
     loading("Hazırlanıyor…");
+    migrateBoards();
     // Kamera, model ve sarkilar ayni anda yuklenir; ana ekran sarkilar gelir gelmez acilir.
     // Kamera kendi kartinda "Kamera aciliyor" gosterir, model arka planda hazirlanir.
     mountCam($("#homeCamStage"));

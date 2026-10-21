@@ -1,4 +1,4 @@
-// Puanlama motoru testi: node dans-challenge/engine.test.js
+// Puanlama motoru testi: node oyun/engine.test.js
 // Her sarkinin kendi dansi yuksek, baska sarkinin dansi belirgin dusuk puan almali.
 const assert = require("assert");
 const fs = require("fs");

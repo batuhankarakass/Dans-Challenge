@@ -3,6 +3,7 @@
     {
       "id": "tralala",
       "title": "Tralala",
+      "tur": "Pop",
       "file": "sarkilar/tralala.mp4",
       "pose": "sarkilar/tralala.pose.json",
       "start": 0.0,
@@ -11,6 +12,7 @@
     {
       "id": "toz-pembe",
       "title": "Toz Pembe",
+      "tur": "Pop",
       "file": "sarkilar/toz-pembe.mp4",
       "pose": "sarkilar/toz-pembe.pose.json",
       "start": 0.038,
@@ -19,6 +21,7 @@
     {
       "id": "snap",
       "title": "Snap",
+      "tur": "Pop",
       "file": "sarkilar/snap.mp4",
       "pose": "sarkilar/snap.pose.json",
       "start": 0.021,
@@ -27,6 +30,7 @@
     {
       "id": "ariyo",
       "title": "Arıyo",
+      "tur": "Pop",
       "file": "sarkilar/ariyo.mp4",
       "pose": "sarkilar/ariyo.pose.json",
       "start": 0.0,
@@ -35,6 +39,7 @@
     {
       "id": "kts",
       "title": "KTS",
+      "tur": "Pop",
       "file": "sarkilar/kts.mp4",
       "pose": "sarkilar/kts.pose.json",
       "start": 0.026,
@@ -43,6 +48,7 @@
     {
       "id": "zamansizdik",
       "title": "Zamansızdık",
+      "tur": "Pop",
       "file": "sarkilar/zamansizdik.mp4",
       "pose": "sarkilar/zamansizdik.pose.json",
       "start": 0.024,
@@ -51,6 +57,7 @@
     {
       "id": "ruya",
       "title": "Rüya",
+      "tur": "Pop",
       "file": "sarkilar/ruya.mp4",
       "pose": "sarkilar/ruya.pose.json",
       "start": 0.0,
@@ -59,6 +66,7 @@
     {
       "id": "daha-iyi",
       "title": "Daha İyi",
+      "tur": "Pop",
       "file": "sarkilar/daha-iyi.mp4",
       "pose": "sarkilar/daha-iyi.pose.json",
       "start": 0.045,
@@ -67,6 +75,7 @@
     {
       "id": "basrol-sensin",
       "title": "Başrol Sensin",
+      "tur": "Pop",
       "file": "sarkilar/basrol-sensin.mp4",
       "pose": "sarkilar/basrol-sensin.pose.json",
       "start": 0.0,
@@ -75,6 +84,7 @@
     {
       "id": "manifest",
       "title": "Manifest",
+      "tur": "Pop",
       "file": "sarkilar/manifest.mp4",
       "pose": "sarkilar/manifest.pose.json",
       "start": 0.0,
@@ -83,6 +93,7 @@
     {
       "id": "hileli",
       "title": "Hileli",
+      "tur": "Pop",
       "file": "sarkilar/hileli.mp4",
       "pose": "sarkilar/hileli.pose.json",
       "start": 0.0,
@@ -91,6 +102,7 @@
     {
       "id": "amator",
       "title": "Amatör",
+      "tur": "Pop",
       "file": "sarkilar/amator.mp4",
       "pose": "sarkilar/amator.pose.json",
       "start": 0.031,

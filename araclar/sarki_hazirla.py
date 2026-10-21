@@ -7,7 +7,7 @@ Kullanim:
 2. Dansin basladigi ve bittigi an bulunur: dansci hareket etmeye basladigi yer, muzigin
    vurusuna oturtulur (--bas / --son ile elle de verilebilir).
 3. Video o bolumden kesilir (basta 1 sn giris payi, skor sayilmaz), H.264'e cevrilir.
-4. dans-challenge/sarkilar/<id>.mp4 + <id>.pose.json yazilir, sarkilar.json guncellenir.
+4. oyun/sarkilar/<id>.mp4 + <id>.pose.json yazilir, sarkilar.json guncellenir.
 """
 import argparse
 import json
@@ -20,7 +20,7 @@ import poz_cikar
 import ses_hizala
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-SARKILAR = os.path.join(ROOT, "dans-challenge", "sarkilar")
+SARKILAR = os.path.join(os.path.dirname(ROOT), "oyun", "sarkilar")
 LEAD = 1.0       # dans baslamadan once oynayacak sure (sn), skor sayilmaz
 
 
@@ -52,6 +52,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("id"); ap.add_argument("baslik"); ap.add_argument("dans")
     ap.add_argument("--bas", type=float); ap.add_argument("--son", type=float)
+    ap.add_argument("--tur", default="Pop", help='ana ekrandaki sekme, ör. "Oyun Havası"')
     a = ap.parse_args()
 
     data, found = poz_cikar.analyse(a.dans)
@@ -82,7 +83,7 @@ def main():
     with open(os.path.join(SARKILAR, a.id + ".pose.json"), "w") as f:
         json.dump(pose, f, separators=(",", ":"))
 
-    song = {"id": a.id, "title": a.baslik, "file": f"sarkilar/{a.id}.mp4", "pose": f"sarkilar/{a.id}.pose.json",
+    song = {"id": a.id, "title": a.baslik, "tur": a.tur, "file": f"sarkilar/{a.id}.mp4", "pose": f"sarkilar/{a.id}.pose.json",
             "start": ts[0], "end": round(ts[-1] - 0.05, 2)}
     lst_path = os.path.join(SARKILAR, "sarkilar.json")
     lst = json.load(open(lst_path, encoding="utf-8")) if os.path.exists(lst_path) else {"songs": []}
