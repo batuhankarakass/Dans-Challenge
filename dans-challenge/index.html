@@ -57,6 +57,14 @@
           <li><b>3</b><span>Skorunu al<small>Fotoğrafını indir, tabloya adını yazdır</small></span></li>
         </ol>
 
+        <div class="mode-pick" id="modePick" role="radiogroup" aria-label="Oyuncu sayısı">
+          <span class="mode-label">Oyuncu</span>
+          <button type="button" class="mode" data-n="1" role="radio" aria-checked="true">1<small>Solo</small></button>
+          <button type="button" class="mode" data-n="2" role="radio" aria-checked="false">2<small>İkili</small></button>
+          <button type="button" class="mode" data-n="3" role="radio" aria-checked="false">3<small>Üçlü</small></button>
+          <span class="mode-hint">Ekran oyuncu sayısı kadar bölmeye ayrılır; kendi bölmesinde elini kaldıran kişi dansçı olarak tanınır. Takım puanı = oyuncuların toplam puanı ÷ oyuncu sayısı.</span>
+        </div>
+
         <button class="start-btn" id="btnStart">
           <span>Başla</span>
           <kbd>Space</kbd>
@@ -82,9 +90,11 @@
   <!-- ISIM -->
   <section class="screen overlay-screen" id="scrName">
     <form class="name-card" id="nameForm" autocomplete="off">
-      <h2>Adın ne?</h2>
-      <p class="hint">Skor tablosunda bu isim görünecek. Boş bırakırsan "Misafir" yazar.</p>
+      <h2 id="nameTitle">Adın ne?</h2>
+      <p class="hint" id="nameHint">Skor tablosunda bu isim görünecek. Boş bırakırsan "Misafir" yazar.</p>
       <input id="nameInput" maxlength="18" placeholder="Adın" aria-label="Adın">
+      <input id="nameInput2" maxlength="18" placeholder="2. oyuncunun adı" aria-label="2. oyuncunun adı" hidden>
+      <input id="nameInput3" maxlength="18" placeholder="3. oyuncunun adı" aria-label="3. oyuncunun adı" hidden>
       <div class="row">
         <button type="button" class="ghost-btn" id="btnNameBack">Geri <kbd>Esc</kbd></button>
         <button type="submit" class="start-btn small"><span>Devam</span><kbd>Enter</kbd></button>
@@ -111,9 +121,11 @@
       <div class="panel cam-panel" id="playCamPanel">
         <div class="cam-stage" id="playCamStage"></div>
         <span class="panel-tag">Sen</span>
+        <div class="player-strip" id="playerStrip" hidden></div>
         <div class="judge" id="judge" aria-live="polite"></div>
         <div class="ready-guide" id="readyGuide">
           <div class="guide-body" aria-hidden="true"></div>
+          <ul class="ready-slots" id="readySlots"></ul>
           <p id="readyText">Tüm vücudun görünecek şekilde geri çekil</p>
           <p class="hint"><kbd>Space</kbd> ile beklemeden başla</p>
         </div>
@@ -136,6 +148,9 @@
         <div class="stars" id="resStars" aria-label=""></div>
         <p class="result-title" id="resTitle"></p>
         <div class="counts" id="resCounts"></div>
+        <p class="res-winner" id="resWinner" hidden></p>
+        <ol class="res-players" id="resPlayers" hidden></ol>
+        <p class="hint" id="resTeamNote" hidden></p>
         <dl class="result-stats">
           <div><dt>Puan</dt><dd id="resPoints">0</dd></div>
           <div><dt>En uzun kombo</dt><dd id="resCombo">0</dd></div>
@@ -266,6 +281,7 @@
 
 <script src="lib/pose/pose.js"></script>
 <script src="engine.js"></script>
+<script src="team.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

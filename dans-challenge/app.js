@@ -5,6 +5,7 @@
   "use strict";
   const $ = (s) => document.querySelector(s);
   const E = window.DanceEngine;
+  const DT = window.DanceTeam;
   const params = new URLSearchParams(location.search);
   // Test icin gizli parametreler (normal kullanimda gerek yok)
   const TEST = {
@@ -15,12 +16,14 @@
     songs: params.get("songs"),             // farkli sarki listesi
     mute: params.has("mute"),
     model: params.get("model"),
+    players: params.get("players"),         // oyuncu sayisi (1-3)
+    simDiff: params.has("simdiff") ? +params.get("simdiff") : 0,   // sim: k. oyuncu k*simdiff sn geriden dansi yapar (farkli puan icin)
   };
 
   // ------------------------------------------------------------ ayarlar
   const DEFAULTS = {
     cameraId: "", difficulty: "normal", mirror: "auto", latency: 0.1, model: 1, fps: false,
-    title: "Dans Challenge", club: "Google Developer Groups on Campus", autoReturn: 30, songId: "",
+    title: "Dans Challenge", club: "Google Developer Groups on Campus", autoReturn: 30, songId: "", players: 1,
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -28,7 +31,16 @@
   };
   const settings = Object.assign({}, DEFAULTS, store.get("dc.settings", {}));
   if (TEST.model != null) settings.model = +TEST.model;
-  const saveSettings = () => store.set("dc.settings", settings);
+  if (TEST.players) settings.players = +TEST.players;
+  settings.players = Math.max(1, Math.min(3, Math.round(+settings.players) || 1));
+  // ?players= ve ?model= yalnizca o oturum icin (kalici ayara yazilmaz)
+  const TEST_ONLY = { players: !!TEST.players, model: TEST.model != null };
+  const saveSettings = () => {
+    const out = Object.assign({}, settings);
+    const saved = store.get("dc.settings", {});
+    for (const k of Object.keys(TEST_ONLY)) if (TEST_ONLY[k]) { if (k in saved) out[k] = saved[k]; else delete out[k]; }
+    store.set("dc.settings", out);
+  };
 
   // ------------------------------------------------------------ IndexedDB (eklenen videolar + analizler)
   const idb = {
@@ -157,15 +169,15 @@
   const currentSong = () => songs.find((s) => s.id === settings.songId) || songs[0] || null;
 
   // ------------------------------------------------------------ skor tablosu
-  const boardKey = (id) => "dc.board." + id;
-  const getBoard = (id) => store.get(boardKey(id), []);
-  function addToBoard(id, entry) {
-    const b = getBoard(id);
+  const boardKey = (id, n = settings.players) => "dc.board." + id + (n > 1 ? "." + n : "");
+  const getBoard = (id, n) => store.get(boardKey(id, n), []);
+  function addToBoard(id, entry, n) {
+    const b = getBoard(id, n);
     entry.key = Date.now() + Math.random();
     b.push(entry);
     b.sort((x, y) => y.points - x.points || y.acc - x.acc);
     const top = b.slice(0, 10);
-    store.set(boardKey(id), top);
+    store.set(boardKey(id, n), top);
     const i = top.findIndex((e) => e.key === entry.key);
     return { rank: i >= 0 ? i + 1 : null, key: entry.key, size: top.length };
   }
@@ -197,6 +209,104 @@
     },
     reset() { try { this.pose && this.pose.reset(); } catch (e) { /* yok */ } },
   };
+
+  // ------------------------------------------------------------ cok kisili algilama (MediaPipe Tasks) + oyuncu takibi
+  const PCOLORS = ["#c58af9", "#ff8a3d", "#24c1e0"];   // oyuncu 1-3 (PERFECT/GREAT/GOOD/MISS renklerinden farkli)
+  const detector = {
+    lm: null, ready: false, last: 0, poses: 0, promise: null, gen: 0, fails: 0, cpu: false,
+    mod: null, fileset: null, zoneLms: [], zoneKey: "", zoneCv: document.createElement("canvas"),
+    /** variant: "full" | "lite" */
+    make(variant, numPoses, delegate) {
+      return this.mod.PoseLandmarker.createFromOptions(this.fileset, {
+        baseOptions: { modelAssetPath: `lib/tasks/pose_landmarker_${variant}.task`, delegate },
+        runningMode: "VIDEO", numPoses, minPoseDetectionConfidence: 0.4, minPosePresenceConfidence: 0.4, minTrackingConfidence: 0.4,
+      });
+    },
+    /** n bolme icin her birine ayri (kendi takibi olan) bir algilayici kurar; true = hazir */
+    async ensureZones(n) {
+      await this.promise;
+      if (!this.mod) return false;
+      const variant = settings.model && n <= 2 ? "full" : "lite", key = `${variant}:${n}:${this.cpu}`;
+      if (this.zoneKey === key && this.zoneLms.length === n) return true;
+      for (const z of this.zoneLms) { try { z.close(); } catch (e) { /* yok */ } }
+      this.zoneLms = []; this.zoneKey = "";
+      try {
+        for (let k = 0; k < n; k++) this.zoneLms.push(await this.make(variant, 1, this.cpu ? "CPU" : "GPU").catch(() => { this.cpu = true; return this.make(variant, 1, "CPU"); }));
+      } catch (e) { console.warn("bolme algilayicilari kurulamadi", e); this.zoneLms = []; return false; }
+      this.zoneKey = key;
+      return true;
+    },
+    /**
+     * Kadraji n dikey bolmeye ayirir; her bolmeyi kendi algilayicisina verir.
+     * Doner: [ekranda soldan saga k. bolmedeki kisi (12 nokta, tum kadraja gore normalize) | null]
+     * (goruntu ekranda aynalandigi icin ekranin solu = kameranin saginda)
+     */
+    detectZones(video, n) {
+      const vw = video.videoWidth, vh = video.videoHeight, zw = vw / n, cv = this.zoneCv;
+      if (!vw || this.zoneLms.length !== n) return new Array(n).fill(null);
+      const w = Math.round(zw);
+      if (cv.width !== w || cv.height !== vh) { cv.width = w; cv.height = vh; }
+      const cx = cv.getContext("2d"), ts = Math.max(performance.now(), this.last + 1); this.last = ts;
+      const out = [];
+      for (let k = 0; k < n; k++) {
+        const x0 = (n - 1 - k) * zw;
+        cx.drawImage(video, x0, 0, zw, vh, 0, 0, w, vh);
+        let pts = null;
+        try {
+          const lm = this.zoneLms[k].detectForVideo(cv, ts).landmarks;
+          if (lm && lm[0]) pts = E.fromMediaPipe(lm[0]).map((p) => [(x0 + p[0] * zw) / vw, p[1], p[2]]);
+          this.fails = 0;
+        } catch (e) { console.warn("bolme algilama hatasi", e); }
+        out.push(pts);
+      }
+      return out;
+    },
+    init(model) {
+      const gen = ++this.gen;
+      this.ready = false; this.fails = 0;
+      this.promise = (async () => {
+        if (!this.mod) { this.mod = await import("./lib/tasks/vision_bundle.mjs"); this.fileset = await this.mod.FilesetResolver.forVisionTasks("lib/tasks/wasm"); }
+        const make = (delegate) => this.make(model ? "full" : "lite", 4, delegate);
+        let lm;
+        if (this.cpu) lm = await make("CPU");
+        else { try { lm = await make("GPU"); } catch (e) { lm = await make("CPU"); this.cpu = true; } }
+        if (gen !== this.gen) { try { lm.close(); } catch (e) { /* yok */ } return; }   // daha yeni bir init basladi
+        if (this.lm) { try { this.lm.close(); } catch (e) { /* yok */ } }
+        this.lm = lm; this.poses = 4; this.ready = true;
+      })().catch((e) => { console.warn("cok kisili model yuklenemedi, tek kisilik algilama kullanilacak", e); if (gen === this.gen) this.ready = false; });
+      return this.promise;
+    },
+    setPoses(n) { if (this.ready && n !== this.poses) { try { this.lm.setOptions({ numPoses: n }); this.poses = n; } catch (e) { /* yok */ } } },
+    /** video karesindeki herkes: 12 noktalik diziler listesi */
+    detect(video) {
+      const ts = Math.max(performance.now(), this.last + 1); this.last = ts;
+      try { const out = (this.lm.detectForVideo(video, ts).landmarks || []).map(E.fromMediaPipe); this.fails = 0; return out; }
+      catch (e) {
+        // GPU "kuruldu ama calismiyor" durumu: 5 ardisik hatadan sonra CPU ile yeniden kur
+        console.warn("algilama hatasi", e);
+        if (++this.fails === 5 && !this.cpu) { this.cpu = true; this.init(settings.model); }
+        return [];
+      }
+    },
+  };
+  const crowd = new DT.Crowd(1);
+  /** algilama hazir mi: once Tasks (cok kisili), olmazsa eski tek kisilik kutuphane */
+  const poseOk = () => detector.ready || poseSys.ready;
+  /** ayni anda iki MediaPipe wasm modulu yuklenemez (global Module cakisir): yedek yalnizca Tasks basarisizsa acilir */
+  async function initModels() {
+    await detector.init(settings.model);
+    if (detector.ready) return;
+    await poseSys.init(settings.model);
+  }
+  /** tek goruntude en belirgin kisi (referans video analizi icin): 12 noktalik dizi ya da null */
+  async function detectOne(img) {
+    if (detector.ready) {
+      const list = detector.detect(img);
+      return list.length ? list.reduce((a, b) => (DT.prominence(b) > DT.prominence(a) ? b : a)) : null;
+    }
+    const r = await poseSys.detect(img);
+    return r && r.poseLandmarks ? E.fromMediaPipe(r.poseLandmarks) : null;
+  }
 
   // ------------------------------------------------------------ kamera
   const cam = { video: document.createElement("video"), overlay: document.createElement("canvas"), stream: null, ok: false, aspect: 4 / 3, label: "", msg: null };
@@ -295,6 +405,7 @@
   }
 
   // ------------------------------------------------------------ eklem cizimi
+  const DIM = new Float32Array(9).fill(NaN);   // kayitsiz kisi: soluk iskelet
   const COLORS = { PERFECT: "#34a853", GREAT: "#4285f4", GOOD: "#fbbc05", MISS: "#ea4335" };
   function segColor(d) {
     if (d == null || Number.isNaN(d)) return "rgba(255,255,255,.55)";
@@ -343,15 +454,44 @@
   }
 
   // ------------------------------------------------------------ canli dongu
-  const live = { pts: null, at: 0, segDiff: null, poseCount: 0, frameCount: 0, fpsT: performance.now(), poseFps: 0, loopFps: 0 };
+  const live = { pts: null, people: [], segDiffs: [], at: 0, poseCount: 0, frameCount: 0, fpsT: performance.now(), poseFps: 0, loopFps: 0 };
   let lastCamTime = -1;
   let analyzing = false;
   let sim = null; // test: hazir eklem verisi
   const simAt = (t) => { if (!sim) return null; const k = Math.round(t * sim.fps); return k >= 0 && k < sim.frames.length ? sim.frames[k] : null; };
 
-  function onPose(pts) {
-    live.pts = pts; live.at = performance.now(); live.poseCount++;
-    if (game.state === "play") game.onPose(pts);
+  /** list: bu karede algilanan herkesin 12 noktalik dizisi (bos = kimse yok) */
+  function onPeople(list) {
+    live.at = performance.now(); live.poseCount++;
+    crowd.update(live.at / 1000, list, cam.aspect);
+    live.people = crowd.visible();
+    live.pts = live.people.length ? live.people.reduce((a, b) => (DT.prominence(b.pts) > DT.prominence(a.pts) ? b : a)).pts : null;
+    if (game.state === "play") game.onPeople();
+  }
+  /** bolmeli mod: perZone[k] = k. bolmedeki kisi ya da null */
+  function onZones(perZone) {
+    live.at = performance.now(); live.poseCount++;
+    crowd.updateZones(live.at / 1000, perZone, cam.aspect);
+    live.people = crowd.visible();
+    live.pts = live.people.length ? live.people[0].pts : null;
+    if (game.state === "play") game.onPeople();
+  }
+  const onPose = (pts) => onPeople(pts ? [pts] : []);   // tek kisilik kaynak (legacy Pose)
+  /** test (sim): ayni eklem verisini oyuncu sayisi kadar yana kaydirip cogaltir */
+  function simZones(t) {
+    const n = settings.players;
+    return Array.from({ length: n }, (_, k) => {
+      const pts = simAt(t - k * TEST.simDiff);
+      if (!pts) return null;
+      const c0 = (pts[0][0] + pts[1][0]) / 2;
+      const dx = (n - 1 - k + 0.5) / n - c0;     // k. bolmenin (kamera koordinatinda) ortasina tasi
+      return pts.map((q) => [q[0] + dx, q[1], q[2]]);
+    });
+  }
+  function simPeople(pts) {
+    if (!pts) return [];
+    const n = settings.players, offs = n === 1 ? [0] : n === 2 ? [-0.22, 0.22] : [-0.3, 0, 0.3];
+    return offs.map((dx) => pts.map((q) => [q[0] + dx, q[1], q[2]]));
   }
 
   function loop() {
@@ -367,13 +507,17 @@
     if (cam.ok && !analyzing && cam.video.readyState >= 2) {
       if (sim) {
         /* test modu: eklemler setInterval ile geliyor (asagida) */
+      } else if (crowd.zoned && detector.zoneLms.length === crowd.zoneN) {
+        if (cam.video.currentTime !== lastCamTime) { lastCamTime = cam.video.currentTime; onZones(detector.detectZones(cam.video, crowd.zoneN)); }
+      } else if (detector.ready) {
+        if (cam.video.currentTime !== lastCamTime) { lastCamTime = cam.video.currentTime; onPeople(detector.detect(cam.video)); }
       } else if (!poseSys.busy && poseSys.ready && cam.video.currentTime !== lastCamTime) {
         lastCamTime = cam.video.currentTime;
-        poseSys.detect(cam.video).then((r) => { if (r) onPose(E.fromMediaPipe(r.poseLandmarks)); });
+        poseSys.detect(cam.video).then((r) => { if (r) onPose(r.poseLandmarks ? E.fromMediaPipe(r.poseLandmarks) : null); });
       }
     }
     // kisi 1.2 sn'dir gorulmediyse yok say
-    if (now - live.at > 1200 && !sim) live.pts = null;
+    if (now - live.at > 1200 && !sim) { live.pts = null; live.people = []; if (crowd.visible().length) crowd.update(now / 1000, [], cam.aspect); }
     draw();
     game.update(now);
     fx.step();
@@ -387,14 +531,92 @@
     camCtx.clearRect(0, 0, W, H);
     if (!cam.ok) return;
     const vw = cam.video.videoWidth || 640, vh = cam.video.videoHeight || 480;
-    const sd = game.state === "play" ? live.segDiff : null;
-    drawSkeleton(camCtx, live.pts, W, H, vw, vh, sd, dpr * 0.8);
+    const playing = game.state === "play", inGame = screen === "play";
+    if (inGame && crowd.zoned && game.state !== "done") drawZones(camCtx, W, H, dpr);
+    for (const tr of live.people) {
+      const slot = crowd.slotOfTrack(tr);
+      // herkes cizilir; elini kaldirip kaydolmayanlar soluk (puanlanmaz)
+      drawSkeleton(camCtx, tr.pts, W, H, vw, vh, slot >= 0 ? (playing ? live.segDiffs[slot] : null) : (playing ? DIM : null), dpr * 0.8);
+      if (!inGame) continue;
+      if (slot >= 0 && playing && crowd.n > 1) {
+        const jd = game.lastJudge[slot], age = jd ? (performance.now() - jd.at) / 1000 : 9;
+        if (age < 1.7) drawJudge(camCtx, tr.pts, W, H, vw, vh, dpr, jd, age);
+      }
+      if (slot >= 0 && crowd.n > 1 && !crowd.zoned) drawTag(camCtx, tr.pts, W, H, vw, vh, dpr, `${slot + 1} · ${game.names[slot] || ""}`, PCOLORS[slot], 1);
+      else if (slot < 0 && tr.progress > 0) drawTag(camCtx, tr.pts, W, H, vw, vh, dpr, "✋", "#ffffff", tr.progress);
+    }
     // ana ekran: vucut durumu
     if (screen === "home") {
       const ok = bodyStatus(live.pts) >= 1;
       $("#bodyChip").hidden = !ok;
+      $("#bodyChip").textContent = live.people.length > 1 ? `${live.people.length} kişi algılandı` : "Vücut algılandı";
       $("#bodyChip").className = "chip ok";
     }
+  }
+
+  /** oyuncunun kafasinin ustunde o saniyenin yargisi (PERFECT / GREAT / GOOD / MISS) ve +puan */
+  function drawJudge(ctx, pts, W, H, vw, vh, dpr, jd, age) {
+    const a = mapPt(pts[0], W, H, vw, vh), b = mapPt(pts[1], W, H, vw, vh);
+    const sw = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const x = (a[0] + b[0]) / 2, y = (a[1] + b[1]) / 2 - sw * 1.2 - age * 14 * dpr;     // hafifce yukari suzulur
+    const pop = 1 + 0.35 * Math.max(0, 1 - age / 0.22), fade = age > 1.2 ? Math.max(0, 1 - (age - 1.2) / 0.5) : 1;
+    const size = Math.max(22, Math.min(46, sw / dpr * 0.42)) * dpr * pop;
+    ctx.save();
+    ctx.globalAlpha = fade; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = `${Math.round(size)}px Bungee, Outfit, sans-serif`;
+    ctx.lineJoin = "round"; ctx.lineWidth = Math.max(4, size * 0.2); ctx.strokeStyle = "rgba(8,9,40,.9)";
+    ctx.strokeText(jd.label, x, y);
+    ctx.fillStyle = COLORS[jd.label]; ctx.fillText(jd.label, x, y);
+    if (jd.points) {
+      ctx.font = `800 ${Math.round(size * 0.55)}px Outfit, sans-serif`;
+      ctx.lineWidth = Math.max(3, size * 0.14);
+      ctx.strokeText(`+${jd.points}`, x, y + size * 0.78); ctx.fillStyle = "#ffffff"; ctx.fillText(`+${jd.points}`, x, y + size * 0.78);
+    }
+    ctx.restore();
+  }
+
+  /** bolmeli mod: bolme cizgileri ve ustte "1 · Ali" etiketleri (kaydolmamis bolme: ✋ ve soluk) */
+  function drawZones(ctx, W, H, dpr) {
+    const n = crowd.zoneN;
+    ctx.save();
+    ctx.setLineDash([14 * dpr, 12 * dpr]); ctx.lineWidth = 3 * dpr; ctx.strokeStyle = "rgba(255,255,255,.45)";
+    for (let k = 1; k < n; k++) { ctx.beginPath(); ctx.moveTo(W * k / n, 0); ctx.lineTo(W * k / n, H); ctx.stroke(); }
+    ctx.setLineDash([]);
+    ctx.font = `800 ${Math.round(20 * dpr)}px Outfit, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const top = game.state === "play" || game.state === "countdown" ? 70 * dpr : 24 * dpr;
+    for (let k = 0; k < n; k++) {
+      const reg = crowd.slots.some((s) => s.trackId === k + 1);
+      if (!reg && (game.state === "play" || game.state === "countdown")) continue;   // dans basladi: kaydolmayan bolmeye etiket yok
+      const text = `${k + 1} · ${game.entered[k] || ""}${reg ? "" : "  ✋"}`;
+      const w = ctx.measureText(text).width + 24 * dpr, h = 34 * dpr, x = W * (k + 0.5) / n, y = top;
+      ctx.globalAlpha = reg ? 1 : 0.75;
+      ctx.fillStyle = reg ? PCOLORS[k] : "rgba(8,9,40,.85)"; ctx.strokeStyle = PCOLORS[k]; ctx.lineWidth = 2 * dpr;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2); else ctx.rect(x - w / 2, y - h / 2, w, h);
+      ctx.fill(); if (!reg) ctx.stroke();
+      ctx.fillStyle = reg ? "#10123a" : "#ffffff"; ctx.fillText(text, x, y + dpr);
+    }
+    ctx.restore();
+  }
+
+  /** kisinin basinin ustune oyuncu etiketi (progress < 1: el kaldirma halkasi) */
+  function drawTag(ctx, pts, W, H, vw, vh, dpr, text, color, progress) {
+    const a = mapPt(pts[0], W, H, vw, vh), b = mapPt(pts[1], W, H, vw, vh);
+    const sw = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const x = (a[0] + b[0]) / 2, y = (a[1] + b[1]) / 2 - sw * 1.25;
+    if (progress < 1) {
+      ctx.lineWidth = 6 * dpr; ctx.strokeStyle = "rgba(255,255,255,.25)";
+      ctx.beginPath(); ctx.arc(x, y, 26 * dpr, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = color; ctx.beginPath(); ctx.arc(x, y, 26 * dpr, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); ctx.stroke();
+      return;
+    }
+    ctx.font = `800 ${Math.round(20 * dpr)}px Outfit, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const w = ctx.measureText(text).width + 22 * dpr, h = 34 * dpr;
+    ctx.fillStyle = color; ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2); else ctx.rect(x - w / 2, y - h / 2, w, h);
+    ctx.fill();
+    ctx.fillStyle = "#10123a"; ctx.fillText(text, x, y + 1 * dpr);
+    ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
   }
 
   /** 0: yok, 1: ust vucut tamam, 2: tam vucut */
@@ -442,10 +664,24 @@
   // ------------------------------------------------------------ fotograf (en iyi an)
   const photo = { shot: document.createElement("canvas"), has: false };
   photo.shot.width = 640; photo.shot.height = 640;
-  function capturePhoto(pts, segDiff) {
+  /** items: [{pts, segDiff}] — tek oyuncuda kisiyi ortalar, cok oyuncuda butun kadrajı sigdirir */
+  function capturePhoto(items) {
     if (!cam.ok || cam.video.readyState < 2) return;
     const vw = cam.video.videoWidth, vh = cam.video.videoHeight;
     const ctx = photo.shot.getContext("2d");
+    const seen = (items || []).filter((it) => it && it.pts);
+    if (seen.length > 1) {
+      const h = vh * (640 / vw), oy = (640 - h) / 2;
+      ctx.fillStyle = "#1d2063"; ctx.fillRect(0, 0, 640, 640);
+      ctx.save(); ctx.translate(640, 0); ctx.scale(-1, 1);
+      ctx.drawImage(cam.video, 0, 0, vw, vh, 0, oy, 640, h);
+      ctx.restore();
+      const wide = (p) => [640 - p[0] * 640, oy + p[1] * h];
+      for (const it of seen) drawSkeleton(ctx, it.pts, 640, 640, vw, vh, it.segDiff, 0.9, wide);
+      photo.has = true;
+      return;
+    }
+    const pts = seen.length ? seen[0].pts : null, segDiff = seen.length ? seen[0].segDiff : null;
     const side = Math.min(vw, vh);
     // kisiyi ortala (omuz-kalca merkezi)
     let cx = vw / 2;
@@ -524,7 +760,7 @@
   async function analyzeSong(song) {
     await bootReady;
     // model yokken analiz bos kare uretir ve bozuk sonuc kalici kaydedilir
-    if (!poseSys.ready && !sim) { toast("Hareket algılama hazır değil, video analiz edilemedi."); return null; }
+    if (!poseOk() && !sim) { toast("Hareket algılama hazır değil, video analiz edilemedi."); return null; }
     const dlg = $("#dlgAnalyze"), box = $("#anVideoBox");
     const v = document.createElement("video");
     v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = song.src;
@@ -544,8 +780,8 @@
       drawSkeleton(octx, pts, W, H, vw, vh, null, 0.6, (p) => [ox + p[0] * vw * sc, oy + p[1] * vh * sc]);
     };
     const process = async (img, t) => {
-      const r = await poseSys.detect(img);
-      const pts = r && r.poseLandmarks ? E.fromMediaPipe(r.poseLandmarks).map((p) => p.map((x) => Math.round(x * 1e4) / 1e4)) : null;
+      const raw = await detectOne(img);
+      const pts = raw ? raw.map((p) => p.map((x) => Math.round(x * 1e4) / 1e4)) : null;
       frames.push(pts); ts.push(Math.round(t * 1000) / 1000);
       drawOverlay(pts);
     };
@@ -640,50 +876,79 @@
   // ------------------------------------------------------------ oyun
   const refVideo = $("#refVideo");
   const game = {
-    state: "idle", song: null, prep: null, session: null, name: "", readySince: 0, cdStart: 0, cdStep: -1,
+    state: "idle", song: null, prep: null, sessions: [], entered: [], names: [], name: "", readySince: 0, readyAt: 0, cdStart: 0, cdStep: -1,
     shownPoints: 0, lastJudgeAt: 0, summary: null, resultTimer: 0, returnAt: 0, lastPushT: -1,
+    teamCounts: null, teamCombo: 0, teamBest: -1, lastLabels: [], lastJudge: [], uiKey: "",
 
-    async begin(name) {
+    /** names: isim dizisi (ya da tek isim); bos birakilanlar "Misafir" / "Oyuncu k" olur */
+    beginTok: 0,
+    async begin(names) {
+      const tok = ++this.beginTok;
+      this.returnAt = 0;
+      const n = settings.players, list = Array.isArray(names) ? names : [names];
+      const entered = Array.from({ length: n }, (_, i) => String(list[i] || "").trim() || (n === 1 ? "Misafir" : `Oyuncu ${i + 1}`));
       const song = currentSong();
       if (!song) { toast("Önce bir şarkı ekle (Ayarlar > Şarkılar)."); return show("home"); }
-      if ((!poseSys.ready && !sim) || !cam.ok) {
+      if ((!poseOk() && !sim) || !cam.ok) {
         toast("Hazırlanıyor, bir saniye…");
         await bootReady;
         if (screen !== "name" && screen !== "result") return;   // beklerken Esc ile cikildi
       }
-      if (!poseSys.ready && !sim) return show("loading");
+      if (!poseOk() && !sim) return show("loading");
       if (!cam.ok) { toast("Kamera çalışmıyor. Kamera kartındaki mesaja bak."); return show("home"); }
-      this.name = (name || "").trim() || "Misafir";
-      this.song = song;
+      if (n > 1 && !sim && !(detector.ready && detector.zoneKey && detector.zoneLms.length === n)) {
+        toast("Çok kişili algılama hazırlanıyor…");
+        const ok = await detector.ensureZones(n);
+        if (tok !== this.beginTok) return;
+        if (screen !== "name" && screen !== "result") return;
+        if (!ok) {
+          toast("Çok kişili algılama başlatılamadı. Tek kişilik moda dönüldü.", 5000);
+          settings.players = 1; saveSettings(); renderHome(); return show("home");
+        }
+      }
+      this.entered = entered; this.names = entered.slice(); this.name = entered.join(" & ");
       sfx.ensure();
       const prep = await getRef(song);
+      if (tok !== this.beginTok) return;                      // beklerken Esc / ana ekran / yeni begin
       if (!prep) return show("home");
-      this.prep = prep;
+      this.song = song; this.prep = prep;
       refVideo.src = song.src; refVideo.muted = TEST.mute; refVideo.loop = false;
-      try { if (refVideo.readyState < 1) await onceEvent(refVideo, "loadedmetadata", 15000); } catch (e) { toast("Şarkı videosu açılamadı."); return show("home"); }
+      try { if (refVideo.readyState < 1) await onceEvent(refVideo, "loadedmetadata", 15000); } catch (e) { if (tok === this.beginTok) { toast("Şarkı videosu açılamadı."); show("home"); } return; }
+      if (tok !== this.beginTok) return;
       refVideo.currentTime = song.start;
       $("#hudSong").textContent = song.title;
       $("#hudPlayer").textContent = this.name;
       $("#hudPoints").textContent = "0"; this.shownPoints = 0;
       $("#hudCombo").hidden = true; $("#hudProgress").style.width = "0%";
       $("#judge").innerHTML = ""; $("#playCamPanel").removeAttribute("data-j");
-      photo.has = false; live.segDiff = null;
+      photo.has = false; live.segDiffs = []; this.sessions = []; this.lastLabels = []; this.lastJudge = [];
+      crowd.reset(n); crowd.zoned = n > 1; detector.setPoses(4);
       show("play");
-      this.state = "ready"; this.readySince = 0;
+      this.state = "ready"; this.readySince = 0; this.readyAt = performance.now(); this.uiKey = "";
       $("#readyGuide").hidden = false; $("#readyGuide").classList.remove("ok");
       $("#countdown").innerHTML = "";
+      renderPlayerStrip();
     },
 
     startCountdown() {
       if (this.state !== "ready") return;
+      crowd.registerProminent(performance.now() / 1000);   // Space: elini kaldirmayan ama gorunenleri de al
+      const keep = crowd.compact();                          // kadrajda olmayan kayitli oyuncular atilir
+      if (!keep.length) { toast("Kimse algılanmadı. Kameraya geç ve elini kaldır."); return; }
+      this.names = keep.map((i) => this.entered[i]); this.name = this.names.join(" & ");
+      $("#hudPlayer").textContent = this.name;
+      crowd.takeover = true; detector.setPoses(4);   // kadrajdaki herkes algilanmaya devam eder
       this.state = "countdown"; this.cdStart = performance.now(); this.cdStep = -1;
       $("#readyGuide").hidden = true;
+      renderPlayerStrip();
     },
 
     go() {
       this.state = "play";
-      this.session = new E.Session(this.prep, { start: this.song.start, end: this.song.end, latency: settings.latency,
-        mirror: settings.mirror, difficulty: settings.difficulty });
+      const opts = { start: this.song.start, end: this.song.end, latency: settings.latency, mirror: settings.mirror, difficulty: settings.difficulty };
+      this.sessions = this.names.map(() => new E.Session(this.prep, opts));
+      this.teamCounts = { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 }; this.teamCombo = 0; this.teamBest = -1;
+      live.segDiffs = []; this.lastLabels = []; this.lastJudge = [];
       this.lastPushT = -1; window.__app.events = []; window.__app.pushes = 0;
       refVideo.currentTime = this.song.start;
       const p = refVideo.play();
@@ -691,23 +956,59 @@
       if (TEST.cam) { try { cam.video.currentTime = this.song.start; } catch (e) { /* yok */ } }
     },
 
-    onPose(pts) {
-      if (this.state !== "play" || !this.session) return;
+    /** x oyuncunun toplam puani / x */
+    teamTotal() {
+      const s = this.sessions;
+      return s.length ? Math.round(s.reduce((a, b) => a + b.points, 0) / s.length) : 0;
+    },
+
+    onPeople() {
+      if (this.state !== "play" || !this.sessions.length) return;
       const t = refVideo.currentTime;
       if (t === this.lastPushT || t < this.song.start) return;
       this.lastPushT = t;
-      const r = this.session.push(t, pts, cam.aspect);
       window.__app.pushes++;
-      live.segDiff = r.segDiff;
-      for (const ev of r.events) this.onEvent(ev);
-      if (r.newBest && r.score >= 40) capturePhoto(pts, r.segDiff);
+      const evs = [], items = [], scores = [];
+      let best = null;
+      this.sessions.forEach((ses, i) => {
+        const tr = crowd.trackOf(i), pts = tr ? tr.pts : null;
+        const r = ses.push(t, pts, cam.aspect);
+        live.segDiffs[i] = r.segDiff;
+        for (const ev of r.events) evs.push(Object.assign({ slot: i }, ev));
+        if (r.score != null) scores.push(r.score);
+        if (r.newBest) best = r;
+        items.push({ pts, segDiff: r.segDiff });
+      });
+      this.handleEvents(evs);
+      if (this.sessions.length === 1) { if (best && best.score >= 40) capturePhoto(items); }
+      else if (scores.length && t - this.song.start > 1.5) {
+        const m = scores.reduce((a, b) => a + b, 0) / scores.length;
+        if (m > this.teamBest + 0.5 && m >= 40) { this.teamBest = m; capturePhoto(items); }
+      }
+    },
+
+    /** tek oyuncuda olaylar aynen iletilir; cok oyuncuda ayni pencerenin yargilari takim yargisina cevrilir */
+    handleEvents(evs) {
+      if (this.sessions.length === 1) { for (const ev of evs) this.onEvent(ev); return; }
+      const groups = new Map();
+      for (const ev of evs) if (ev.type === "judge") { if (!groups.has(ev.i)) groups.set(ev.i, []); groups.get(ev.i).push(ev); }
+      for (const [i, group] of groups) {
+        const w = DT.teamWindow(group, E.judge, this.sessions[0].cfg);
+        if (!w) continue;
+        const at = performance.now();
+        for (const ev of group) { this.lastLabels[ev.slot] = ev.label; this.lastJudge[ev.slot] = { label: ev.label, points: ev.points, at }; }
+        if (w.label === "MISS") this.teamCombo = 0; else this.teamCombo++;
+        this.teamCounts[w.label]++;
+        this.onEvent({ type: "judge", i, label: w.label, score: w.score, points: w.points, total: this.teamTotal(), combo: this.teamCombo, team: true, players: group.map((e) => ({ slot: e.slot, label: e.label, points: e.points })) });
+      }
     },
 
     onEvent(ev) {
       window.__app.events.push(Object.assign({ vt: +refVideo.currentTime.toFixed(2) }, ev));
       if (ev.type !== "judge") return;
       const j = $("#judge");
-      j.innerHTML = `<span class="word" data-l="${ev.label}">${ev.label}</span>` + (ev.points ? `<span class="plus">+${ev.points}</span>` : "");
+      // cok oyunculuda yargi her oyuncunun kafasinda gosterilir; ortadaki buyuk yazi yalnizca solo icin
+      j.innerHTML = ev.team ? "" : `<span class="word" data-l="${ev.label}">${ev.label}</span>` + (ev.points ? `<span class="plus">+${ev.points}</span>` : "");
       const panel = $("#playCamPanel"); panel.setAttribute("data-j", ev.label);
       document.body.classList.remove("flash-PERFECT"); void document.body.offsetWidth;
       if (ev.label === "PERFECT") document.body.classList.add("flash-PERFECT");
@@ -724,17 +1025,8 @@
 
     update(now) {
       if (this.state === "ready") {
-        const st = bodyStatus(live.pts);
-        const g = $("#readyGuide");
-        if (st >= 1) {
-          if (!this.readySince) this.readySince = now;
-          g.classList.add("ok");
-          $("#readyText").textContent = st === 2 ? "Harika, hazırsın!" : "Hazırsın! Bacakların da görünürse daha iyi olur";
-          if (now - this.readySince > (st === 2 ? 900 : 1800)) this.startCountdown();
-        } else {
-          this.readySince = 0; g.classList.remove("ok");
-          $("#readyText").textContent = live.pts ? "Biraz geri çekil, kolların ve kalçan görünsün" : "Kameranın karşısına geç, tüm vücudun görünsün";
-        }
+        const st = this.readyStep(now);
+        if (st && now - this.readySince > (st === 2 ? 900 : 1800)) this.startCountdown();
       } else if (this.state === "countdown") {
         // takilma olup adim atlansa bile 3. adimda (DANS!) oyun mutlaka baslar
         const step = Math.min(3, Math.floor((now - this.cdStart) / 800));
@@ -752,14 +1044,15 @@
         if (t >= s.end - 0.02 || refVideo.ended) this.finish();
         if (now - this.lastJudgeAt > 1200) $("#playCamPanel").removeAttribute("data-j");
       }
-      // puan sayaci yumusak artsin
-      if (this.session && (this.state === "play")) {
-        const target = this.session.points;
+      // puan sayaci yumusak artsin (takim puani)
+      if (this.sessions.length && (this.state === "play")) {
+        const target = this.teamTotal();
         if (this.shownPoints !== target) {
           this.shownPoints += Math.max(1, Math.round((target - this.shownPoints) * 0.18));
           if (this.shownPoints > target) this.shownPoints = target;
           $("#hudPoints").textContent = this.shownPoints.toLocaleString("tr-TR");
         }
+        updatePlayerStrip();
       }
       if (screen === "result" && this.returnAt) {
         const left = Math.ceil((this.returnAt - now) / 1000);
@@ -768,16 +1061,52 @@
       }
     },
 
+    /** hazirlik: el kaldiranlari kaydet, herkes hazirsa 1/2 sayisi doner (0 = henuz degil) */
+    readyStep(now) {
+      const g = $("#readyGuide"), n = crowd.n, reg = crowd.registeredCount();
+      if ((TEST.auto || sim) && reg < n && now - this.readyAt > 400) crowd.registerProminent(now / 1000);
+      const present = crowd.presentCount();
+      let st = 0, text;
+      if (reg === n && present === n) {
+        st = 2;
+        for (let i = 0; i < n; i++) st = Math.min(st, bodyStatus(crowd.slotPts(i)));
+        text = st === 2 ? (n === 1 ? "Harika, hazırsın!" : "Harika, hazırsınız!")
+          : st === 1 ? "Hazır! Bacakların da görünürse daha iyi olur" : "Biraz geri çekil, kolların ve kalçan görünsün";
+      } else if (reg < n && crowd.visible().length === 0) {
+        text = "Kameranın karşısına geç, tüm vücudun görünsün";
+      } else if (reg < n) {
+        if (n === 1) text = "Elini kaldır: dansçı sen olduğunu göster";
+        else {
+          const wait = this.entered.filter((_, i) => !(crowd.slots[i] && crowd.slots[i].trackId));
+          text = `${wait.join(", ")}: kendi bölmende elini kaldır (${reg}/${n})`;
+        }
+      } else text = "Herkes kadraja girsin";
+      if (st >= 1) { if (!this.readySince) this.readySince = now; g.classList.add("ok"); }
+      else { this.readySince = 0; g.classList.remove("ok"); }
+      $("#readyText").textContent = text;
+      // oyuncu yuvalari (isim + kayit durumu)
+      const key = this.entered.map((nm, i) => nm + (crowd.slots[i] && crowd.slots[i].trackId ? (crowd.trackOf(i) ? "+" : "?") : "-")).join("|");
+      if (key !== this.uiKey) {
+        this.uiKey = key;
+        $("#readySlots").innerHTML = n === 1 ? "" : this.entered.map((nm, i) => {
+          const s = crowd.slots[i], on = s && s.trackId, here = on && crowd.trackOf(i);
+          return `<li style="--pc:${PCOLORS[i]}" class="${here ? "on" : on ? "lost" : ""}"><b>${i + 1}</b><span>${escapeHtml(nm)}</span><i>${here ? "✓" : on ? "kadrajda değil" : "✋"}</i></li>`;
+        }).join("");
+      }
+      return st;
+    },
+
     async finish() {
       if (this.state !== "play") return;
       this.state = "done";
       refVideo.pause();
-      const sum = this.session.finish();
-      for (const ev of sum.events) if (ev.type === "judge") this.onEvent(ev);
+      const sums = this.sessions.map((s) => s.finish());
+      this.handleEvents([].concat(...sums.map((s, i) => s.events.map((e) => Object.assign({ slot: i }, e)))));
+      const sum = Object.assign({}, sums[0], DT.teamSummary(sums, E.stars, this.teamCounts));
       this.summary = sum;
-      if (!photo.has) capturePhoto(live.pts, live.segDiff);
-      const entry = { name: this.name, points: sum.points, acc: sum.accuracy, stars: sum.stars, date: Date.now() };
-      const placed = addToBoard(this.song.id, entry);
+      if (!photo.has) capturePhoto(this.sessions.map((_, i) => { const tr = crowd.trackOf(i); return { pts: tr ? tr.pts : null, segDiff: live.segDiffs[i] }; }));
+      const entry = { name: this.name, points: sum.points, acc: sum.accuracy, stars: sum.stars, date: Date.now(), n: this.sessions.length };
+      const placed = addToBoard(this.song.id, entry, this.sessions.length);
       this.lastPlaced = placed;
       await sleep(700);
       if (this.state !== "done") return;   // bu arada Esc ile cikildiysa
@@ -785,17 +1114,54 @@
     },
 
     abort() {
+      this.beginTok++;
       refVideo.pause();
-      this.state = "idle"; this.session = null;
+      this.state = "idle"; this.sessions = [];
+      crowd.takeover = false;
+      renderPlayerStrip();
       $("#countdown").innerHTML = "";
     },
   };
+
+  /** cam panelinin ustundeki oyuncu seridi (yalnizca 2+ oyuncuda) */
+  function renderPlayerStrip() {
+    const el = $("#playerStrip"), n = game.state === "ready" ? crowd.n : game.names.length;
+    el.hidden = !(n > 1 && game.state !== "idle" && game.state !== "ready");
+    el.innerHTML = el.hidden ? "" : game.names.map((nm, i) => `<span class="pchip" style="--pc:${PCOLORS[i]}"><b>${i + 1}</b><span class="nm">${escapeHtml(nm)}</span><em class="pt" data-i="${i}">0</em><small class="lb" data-i="${i}"></small></span>`).join("");
+    game.stripKey = "";
+  }
+  function updatePlayerStrip() {
+    if (game.sessions.length < 2) return;
+    const key = game.sessions.map((s, i) => s.points + (game.lastLabels[i] || "")).join("|");
+    if (key === game.stripKey) return;
+    game.stripKey = key;
+    game.sessions.forEach((s, i) => {
+      const pt = document.querySelector(`#playerStrip .pt[data-i="${i}"]`), lb = document.querySelector(`#playerStrip .lb[data-i="${i}"]`);
+      if (pt) pt.textContent = s.points.toLocaleString("tr-TR");
+      if (lb) { lb.textContent = game.lastLabels[i] || ""; lb.dataset.l = game.lastLabels[i] || ""; }
+    });
+  }
 
   const TITLES = { 5: "Sahnenin yıldızı", 4: "Ritim ustası", 3: "Gayet iyi", 2: "Isınıyorsun", 1: "Bir tur daha?" };
   function showResult(sum, placed) {
     show("result");
     sfx.fanfare();
     $("#resName").textContent = game.name;
+    const pl = $("#resPlayers"), many = sum.players && sum.players.length > 1;
+    pl.hidden = !many; $("#resTeamNote").hidden = !many;
+    const wn = $("#resWinner"); wn.hidden = !many; wn.className = "res-winner";
+    if (many) {
+      const rk = DT.rankPlayers(sum.players);
+      const tie = rk.winners.length > 1, medal = ["gold", "silver", "bronze"];
+      wn.innerHTML = tie
+        ? `<small>Berabere</small><b>${rk.winners.map((i) => escapeHtml(game.names[i] || "")).join(" &amp; ")}</b>`
+        : `<small>Kazanan</small><b>${escapeHtml(game.names[rk.winners[0]] || "")}</b>`;
+      wn.style.setProperty("--pc", PCOLORS[rk.winners[0]]);
+      pl.innerHTML = rk.order.map((i) => { const p = sum.players[i];
+        return `<li class="${rk.ranks[i] === 1 ? "win" : ""}" style="--pc:${PCOLORS[i]}"><b class="rank ${medal[rk.ranks[i] - 1] || ""}">${rk.ranks[i]}</b><span class="nm">${escapeHtml(game.names[i] || "")}</span><span class="ac">%${p.accuracy}</span><span class="pt">${p.points.toLocaleString("tr-TR")}</span></li>`; }).join("");
+      const total = sum.players.reduce((a, p) => a + p.points, 0);
+      $("#resTeamNote").textContent = `Takım puanı = ${sum.players.map((p) => p.points.toLocaleString("tr-TR")).join(" + ")} = ${total.toLocaleString("tr-TR")} ÷ ${sum.players.length} = ${sum.points.toLocaleString("tr-TR")}`;
+    }
     $("#resTitle").textContent = TITLES[sum.stars];
     $("#resPoints").textContent = sum.points.toLocaleString("tr-TR");
     $("#resCombo").textContent = sum.maxCombo;
@@ -838,7 +1204,8 @@
       list.append(b);
     }
     const song = currentSong();
-    $("#boardSong").textContent = song ? "· " + song.title : "";
+    document.querySelectorAll("#modePick .mode").forEach((b) => b.setAttribute("aria-checked", String(+b.dataset.n === settings.players)));
+    $("#boardSong").textContent = song ? "· " + song.title + (settings.players > 1 ? ` (${settings.players} kişi)` : "") : "";
     const board = song ? getBoard(song.id) : [];
     const fresh = game.lastPlaced && game.lastPlaced.key;
     $("#boardList").innerHTML = board.length
@@ -847,11 +1214,23 @@
     $("#btnStart").disabled = !song;
   }
 
+  const nameInputs = () => ["#nameInput", "#nameInput2", "#nameInput3"].map((q) => $(q));
+  const readNames = () => nameInputs().slice(0, settings.players).map((i) => i.value);
   function openName() {
     if (!currentSong()) { toast("Önce bir şarkı ekle."); return; }
+    const n = settings.players;
+    $("#nameTitle").textContent = n === 1 ? "Adın ne?" : "Oyuncular kim?";
+    $("#nameHint").textContent = n === 1 ? "Skor tablosunda bu isim görünecek. Boş bırakırsan \"Misafir\" yazar."
+      : "Ekran oyuncu sayısı kadar bölmeye ayrılır; 1. oyuncu ekranda en solda durur. Herkes kendi bölmesinde elini kaldırarak kaydolur. Boş bırakırsan \"Oyuncu 1, 2…\" yazar.";
+    nameInputs().forEach((inp, i) => { inp.hidden = i >= n; inp.value = ""; inp.placeholder = n === 1 ? "Adın" : `${i + 1}. oyuncunun adı`; inp.setAttribute("aria-label", inp.placeholder); });
     show("name");
-    const inp = $("#nameInput"); inp.value = ""; inp.focus(); setTimeout(() => inp.focus(), 50);
+    const inp = $("#nameInput"); inp.focus(); setTimeout(() => inp.focus(), 50);
   }
+  function setPlayers(n) {
+    settings.players = Math.max(1, Math.min(3, n)); saveSettings(); renderHome();
+    if (settings.players > 1 && !sim) detector.ensureZones(settings.players);   // bolme algilayicilari arka planda hazirlansin
+  }
+  document.querySelectorAll("#modePick .mode").forEach((b) => b.addEventListener("click", () => setPlayers(+b.dataset.n)));
 
   // ------------------------------------------------------------ ayarlar
   const dlgS = $("#dlgSettings");
@@ -877,7 +1256,7 @@
   $("#setLatency").addEventListener("input", (e) => { settings.latency = +e.target.value; $("#latencyVal").textContent = settings.latency.toFixed(2); saveSettings(); });
   $("#setModel").addEventListener("change", async (e) => {
     settings.model = +e.target.value; saveSettings();
-    if (!sim) { toast("Model değiştiriliyor…"); try { await poseSys.init(settings.model); toast("Hazır."); } catch (err) { toast("Model yüklenemedi: " + err.message); } }
+    if (!sim) { toast("Model değiştiriliyor…"); try { await initModels(); toast("Hazır."); } catch (err) { toast("Model yüklenemedi: " + err.message); } }
   });
   $("#setFps").addEventListener("change", (e) => { settings.fps = e.target.checked; saveSettings(); });
   $("#setTitle").addEventListener("input", (e) => { settings.title = e.target.value; saveSettings(); applyTexts(); });
@@ -975,9 +1354,9 @@
 
   // ------------------------------------------------------------ butonlar ve klavye
   $("#btnStart").addEventListener("click", openName);
-  $("#nameForm").addEventListener("submit", (e) => { e.preventDefault(); game.begin($("#nameInput").value); });
-  $("#btnNameBack").addEventListener("click", () => show("home"));
-  $("#btnAgain").addEventListener("click", () => game.begin(game.name));
+  $("#nameForm").addEventListener("submit", (e) => { e.preventDefault(); game.begin(readNames()); });
+  $("#btnNameBack").addEventListener("click", () => { game.beginTok++; show("home"); });
+  $("#btnAgain").addEventListener("click", () => game.begin(game.entered));
   $("#btnHome").addEventListener("click", goHome);
   $("#btnDownload").addEventListener("click", downloadPhoto);
   $("#btnSettings").addEventListener("click", () => openSettings());
@@ -1005,6 +1384,7 @@
     if (screen === "home") {
       if (k === " " || k === "enter") { e.preventDefault(); openName(); }
       else if (k === "s") openSettings();
+      else if (k === "1" || k === "2" || k === "3") setPlayers(+k);
       else if (k === "arrowdown" || k === "arrowup") {
         e.preventDefault();
         const i = songs.findIndex((s) => s.id === settings.songId);
@@ -1012,13 +1392,13 @@
         if (n) { settings.songId = n.id; saveSettings(); renderHome(); }
       }
     } else if (screen === "name") {
-      if (k === "escape") show("home");
-      else if (k === "enter" && !typing) { e.preventDefault(); game.begin($("#nameInput").value); }
+      if (k === "escape") { game.beginTok++; show("home"); }
+      else if (k === "enter" && !typing) { e.preventDefault(); game.begin(readNames()); }
     } else if (screen === "play") {
       if (k === "escape") goHome();
       else if (k === " " && game.state === "ready") { e.preventDefault(); game.startCountdown(); }
     } else if (screen === "result") {
-      if (k === " " || k === "enter") { e.preventDefault(); game.begin(game.name); }
+      if (k === " " || k === "enter") { e.preventDefault(); game.begin(game.entered); }
       else if (k === "escape" || k === "h") goHome();
       else if (k === "d") downloadPhoto();
     }
@@ -1027,7 +1407,7 @@
   // ------------------------------------------------------------ baslangic
   window.__app = {
     get screen() { return screen; }, get state() { return game.state; }, get songs() { return songs; },
-    settings, game, live, cam, poseSys, lastResult: null, errors: [], events: [], pushes: 0,
+    settings, game, live, cam, poseSys, crowd, detector, lastResult: null, errors: [], events: [], pushes: 0,
   };
   window.addEventListener("error", (e) => window.__app.errors.push(String(e.message)));
 
@@ -1045,7 +1425,7 @@
     const camP = startCamera();
     const modelP = TEST.sim
       ? fetch(TEST.sim).then((r) => r.json()).then((d) => { sim = d; }).catch((e) => console.warn(e))
-      : poseSys.init(settings.model).catch((e) => {
+      : initModels().catch((e) => {
         console.error(e);
         loading("Hareket algılama başlatılamadı", "Chrome veya Edge'in güncel sürümünü kullan. Ayarlar > Sistem > \"Donanım hızlandırmayı kullan\" açık olmalı. (" + e.message + ")");
         document.querySelector(".loader-dots").hidden = true;
@@ -1057,11 +1437,12 @@
     show("home");
     requestAnimationFrame(loop);
     await bootReady;
-    if (!poseSys.ready && !sim) return show("loading");   // model hatasi ana ekrandan once geldiyse ustu kapanmasin
+    if (settings.players > 1 && !sim) detector.ensureZones(settings.players);
+    if (!poseOk() && !sim) return show("loading");   // model hatasi ana ekrandan once geldiyse ustu kapanmasin
     if (sim) setInterval(() => {
       if (!cam.ok || analyzing) return;
       const t = game.state === "play" ? refVideo.currentTime - TEST.simLag : cam.video.currentTime;
-      onPose(simAt(t));
+      if (settings.players > 1) onZones(simZones(t)); else onPeople(simPeople(simAt(t)));
     }, 33);
     if (TEST.auto) { await sleep(800); game.begin("Test"); }
   }
